@@ -1,0 +1,18 @@
+{
+    "APN ": "claro.com.br",
+    "APNUser" : "claro",
+    "APNPassword" : "claro",
+    "MQTTHost" : "test.mosquitto.org",
+    "MQTTPort" : 1883,
+    "MQTTclientID" : "MotoTesteTCC",
+    "MQTTTopic" : "Teste_moto_cliente_tcc",
+    "MQTTUsername" : "",
+    "MQTTPassword" : "",
+    "MQTTInfoTopic" : "Info",
+    "MQTTDataTopic" : "potenciometro",
+    "HOST" : "whistleblower",
+    "AP_SSID_local" : "TCU_TCC_Mateus",
+    "AP_PSW" : "tcc_mateus",
+    "STA_SSID" : "Unicon 2.4_Juliana",
+    "STA_PSW" : "99061012"
+}

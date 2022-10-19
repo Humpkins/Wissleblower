@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="global.css">
+    <title>Whistleblower</title>
+</head>
+<script>
+    const atualizar = () =>
+        fetch(
+            'http://whistleblower.local/info', { method: 'GET'}
+        )
+        .then( response => response.json() )
+        .then( response => {
+
+            const apn = document.querySelector('.APN>input');
+            const topic = document.querySelector('.Topic>input');
+            const clientID = document.querySelector('.ClientID>input');
+
+            apn.value = response.APN;
+            topic.value = response.MQTT_Topics;
+            clientID.value = response.MQTT_Client_ID;
+            
+        });
+
+    atualizar();
+
+</script>
+<body>
+    <header> whistleblower </header>
+
+    <div class="container">
+        <div class="APN">
+            <label> APN </label>
+            <input type="text" />
+        </div>
+
+        <div class="Topic">
+            <label> Topic </label>
+            <input type="text" />
+        </div>
+
+        <div class="ClientID">
+            <label> MQTT Client ID </label>
+            <input type="text" />
+        </div>
+
+        <button onclick="atualizar()"> Read </button>
+
+        <button class="toTelemetry" onClick="() => window.location.href = '/telemetria'"> Telemetria </button>
+    </div>
+</body>
+</html>

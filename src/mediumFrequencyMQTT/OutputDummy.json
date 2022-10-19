@@ -1,0 +1,27 @@
+{
+    "Latitude": -99.999999,
+    "Longitude": -99.999999,
+    "GPS_Speed": 999.99,
+    "Altitude": 99999999,
+    "SatelitesInView": 99,
+    "SatelitesInUse": 99,
+
+    "BMS1_Voltage": 99,
+    "BMS1_SoC": 999,
+    "BMS1_Temperature": 99,
+    "BMS1_capacity": 99,
+
+    "BMS2_Voltage": 99,
+    "BMS2_SoC": 999,
+    "BMS2_Temperature": 99,
+    "BMS2_capacity": 99,
+
+    "GPRS_SingalQuality": 99,
+    "cellID": 999,
+    "MCC": 9999,
+    "MNC": 9999,
+    "LAC": 999,
+
+    "Motor_Temperature": 99,
+    "Controller_Temperature": 99
+}

@@ -1,0 +1,8 @@
+./src/mediumFrequencyMQTT linha: 55 e 190
+Qual a melhor forma de esperar uma resposta dentro de um barramento da melhor forma possível (o minimo de block)
+
+./src/MPU6050/MPU6050.h
+Qual a melhor forma de utilizar um sensor que disponibiliza um pinout de interrupção quando quer sinalizar que a leitura está pronta.
+Eu sei que utilizar a interrupção é a forma mais eficiente de fazer a leitura, mas tenho medo de que se usar errado, esse sensor poderá
+atrapalhar o fluxo da aplicação. VERIFICAR SE NÃO ESTOU COLOCANDO MUITA COISA NA FUNÇÃO DE INTERRUPÇÃO
+            Re: Se utilizar uma interrupção para acordar uma task, essa operação fica bem eficiente por causa do RTOS
