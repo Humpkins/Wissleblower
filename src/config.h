@@ -34,8 +34,6 @@ class states{
     const char MQTTHighFrequencyTopic[31] = "HighFrequency";
     const int MQTTHighPeriod = 500;
 
-    const int GPSUpdatePeriod = 3000;
-
     const char HOST[21] = "whistleblower";
 
     const char AP_SSID_local[21] = "TCU_TCC_Mateus";

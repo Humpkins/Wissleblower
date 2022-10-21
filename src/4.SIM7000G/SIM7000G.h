@@ -179,7 +179,6 @@ class SIM7000G{
         bool update_GPS_data(){
 
             this -> turnGPSOn();
-            static TickType_t tickLimit = xTaskGetTickCount() + (g_states.GPSUpdatePeriod / portTICK_PERIOD_MS);
             int tryOut = 5;
 
             for( int i = 0; i < tryOut; i++ ) {
@@ -189,12 +188,12 @@ class SIM7000G{
                                     &this->CurrentGPSData.year, &this->CurrentGPSData.month, &this->CurrentGPSData.day,
                                     &this->CurrentGPSData.hour, &this->CurrentGPSData.minute, &this->CurrentGPSData.second ) ){
 
-                                        this -> turnGPSOff();
+                    this -> turnGPSOff();
 
-                                        //  If GPS data is collected
-                                        return true;
+                    //  If GPS data is collected
+                    return true;
                 }
-                vTaskDelay( 1500 / portTICK_PERIOD_MS );
+                vTaskDelay( 650 / portTICK_PERIOD_MS );
             }
 
             //  If GPS data is NOT collected
@@ -212,79 +211,94 @@ class SIM7000G{
 
             // Now the chaotic part: Get the Cell tower info.
             // This is messy because TinyGSM lib still doesn't have specific function for this job, so we have to parse our way out of it
+            int tryOut = 5;
+            for ( int i = 0; i < tryOut; i++ ){
+                SerialAT.print("AT+CPSI?\r\n");
+                vTaskDelay( 650 / portTICK_PERIOD_MS );
 
-            modem.sendAT(GF("+CPSI?"));
-            modem.waitResponse(1000L, GF("OK"));
+                // Read the AT command's response
+                char response[70];  // Buffer for the AT command's response
+                char midBuff = '\n';
+                int position = 0;   // position in array inside the loop 
+                while ( SerialAT.available() ){
+                    midBuff = SerialAT.read();
 
-            // Read the AT command's response
-            char response[70];  // Buffer for the AT command's response
-            int position = 0;   // position in array inside the loop 
-            while ( SerialAT.available() ){
-                response[position] = SerialAT.read();
-                position++;
-            }
-            response[position] = '\0';
+                    if ( midBuff == '\n' ) break;
 
-            // Split the response's parameters position in the char array
-            position = 0;               // position in array inside the loop
-            int commas_positions[9];    // array to store commas position inside the AT command's char array
-            for ( int i = 0; i < sizeof(response); i++){
-                
-                // If finds comma, store it's position
-                if ( response[i] == ',' ){
-                    commas_positions[position] = i;
+                    response[position] = midBuff;
                     position++;
                 }
+                response[position] = '\0';
+
+                if ( strstr( response, "+CPSI: GSM,Online," ) == NULL ) continue;
+
+                // Split the response's parameters position in the char array
+                position = 0;               // position in array inside the loop
+                int commas_positions[9];    // array to store commas position inside the AT command's char array
+                for ( int i = 0; i < sizeof(response); i++){
+                    
+                    // If finds comma, store it's position
+                    if ( response[i] == ',' ){
+                        commas_positions[position] = i;
+                        position++;
+                    }
+                    
+                }
                 
-            }
-            
-            /*   ____________________________________________________________________________________
-                |                                                                                    |
-                | As we only looking for the 3rd, 4th, 5th and 6th parameters, we only retrieve them |
-                |____________________________________________________________________________________|
-            */
+                /*   ____________________________________________________________________________________
+                    |                                                                                    |
+                    | As we only looking for the 3rd, 4th, 5th and 6th parameters, we only retrieve them |
+                    |____________________________________________________________________________________|
+                */
 
-            // First, the MCC
-            char mcc[4];
-            position = 0;
-            for ( int i = commas_positions[1]; i < commas_positions[2]; i++  ){
-                mcc[position] = response[i];
-                position++;
-            }
-            // Converts the mcc char array to int and stores it
-            if ( sscanf( mcc, "%d", &this->CurrentGPRSData.MCC ) == 0 ) Serial.println("Medium frequency data: Error on parsing MCC data");
+                // First, the MCC
+                char mcc[5];
+                position = 0;
+                for ( int i = commas_positions[1] + 1; response[i] != '-'; i++  ){
+                    mcc[position] = response[i];
+                    position++;
+                }
+                mcc[position] = '\0';
+                // Converts the mcc char array to int and stores it
+                if ( sscanf( mcc, "%d", &this->CurrentGPRSData.MCC ) == 0 ) Serial.println("Medium frequency data: Error on parsing MCC data");
 
-            // Next, the MNC
-            char mnc[4];
-            position = 0;
-            for ( int i = commas_positions[2]; i < commas_positions[3]; i++  ){
-                mnc[position] = response[i];
-                position++;
-            }
-            // Converts the mnc char array to int and stores it
-            if ( sscanf( mnc, "%d", &this->CurrentGPRSData.MNC ) == 0 ) Serial.println("Medium frequency data: Error on parsing MNC data");
+                // Next, the MNC
+                char mnc[3];
+                position = 0;
+                for ( int i = commas_positions[1] + 5; i < commas_positions[2]; i++  ){
+                    mnc[position] = response[i];
+                    position++;
+                }
+                mnc[position] = '\0';
+                // Converts the mnc char array to int and stores it
+                if ( sscanf( mnc, "%d", &this->CurrentGPRSData.MNC ) == 0 ) Serial.println("Medium frequency data: Error on parsing MNC data");
 
-            // Next, the LAC
-            char lac[4];
-            position = 0;
-            for ( int i = commas_positions[3]; i < commas_positions[4]; i++  ){
-                lac[position] = response[i];
-                position++;
-            }
-            // Converts the lac char array to int and stores it
-            if ( sscanf( lac, "%d", &this->CurrentGPRSData.LAC) == 0 ) Serial.println("Medium frequency data: Error on parsing LAC data");
+                // Next, the LAC
+                char lac[4];
+                position = 0;
+                for ( int i = commas_positions[2] + 1; i < commas_positions[3]; i++  ){
+                    lac[position] = response[i];
+                    position++;
+                }
+                lac[position] = '\0';
+                // Converts the lac char array to int and stores it
+                if ( sscanf( lac, "%d", &this->CurrentGPRSData.LAC) == 0 ) Serial.println("Medium frequency data: Error on parsing LAC data");
 
-            // Finally, the CellID. In this case, it needs only the first 3 char from the AT command response's parametter
-            char cell_id[4];
-            position = 0;
-            for ( int i = commas_positions[3]; i < commas_positions[3] + 3; i++  ){
-                cell_id[position] = response[i];
-                position++;
-            }
-            // Converts the lac char array to int and stores it
-            if ( sscanf( cell_id, "%d", &this->CurrentGPRSData.cellID ) == 0 ) Serial.println("Medium frequency data: Error on parsing CellID data");
+                // Finally, the CellID. In this case, it needs only the first 3 char from the AT command response's parametter
+                char cell_id[4];
+                position = 0;
+                for ( int i = commas_positions[3] + 1; i < commas_positions[4]; i++  ){
+                    cell_id[position] = response[i];
+                    position++;
+                }
+                cell_id[position] = '\0';
+                // Converts the lac char array to int and stores it
+                if ( sscanf( cell_id, "%d", &this->CurrentGPRSData.cellID ) == 0 ) Serial.println("Medium frequency data: Error on parsing CellID data");
 
-            return true;
+                return true;
+            }
+
+            return false;
         }
 
 };

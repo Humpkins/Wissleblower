@@ -1,13 +1,14 @@
 #include <Arduino.h>
 
-#include "soc/rtc_wdt.h"
-
 #include "./config.h"
 
 #include "./1.MCP2515/MCP2515.h"
 #include "./2.MPU6050/MPU6050.h"
 #include "./4.SIM7000G/SIM7000G.h"
 #include "./3.MQTT/MQTT.h"
+
+// #include "./highFrequencyMQTT/highFrequencyMQTT.h"
+// #include "./mediumFrequencyMQTT/mediumFrequencyMQTT.h"
 
 #define MCP_INT_PIN 13
 #define MPU_INT_PIN 36
@@ -49,18 +50,6 @@ void TaskHighFreq( void * parameters ){
     }
 }
 
-
-//  Since GPS lock ocours at extremely low frequency, create a task just to update that data
-void taskUpdateGPS ( void * params ){
-    
-    static TickType_t xDelay = g_states.GPSUpdatePeriod / portTICK_PERIOD_MS;
-
-    for(;;){
-        if ( !sim_7000g.update_GPS_data() ) Serial.println("[ERROR]  Handdle GPS sampling error");
-        vTaskDelay( xDelay );
-    }
-}
-
 //  Sends the medium frequency data over mqtt
 void TaskMediumFreq( void * parameters ){
 
@@ -72,7 +61,8 @@ void TaskMediumFreq( void * parameters ){
         if ( xSemaphoreTake( xExternal_connection_semaphore, 0 ) == pdTRUE ) {
 
             // Update only the MEDIUM frequency data as the high frequency data is already updated by this point
-            // if ( !sim_7000g.update_GPRS_data() ) Serial.println("[ERROR]  Handdle GPRS sampling error");
+            if ( !sim_7000g.update_GPS_data() ) Serial.println("[ERROR]  Handdle GPS sampling error");
+            if ( !sim_7000g.update_GPRS_data() ) Serial.println("[ERROR]  Handdle GPRS sampling error");
 
             // Send medium frequency data through mqtt
             Serial.println("MEDIUM freq sent");
@@ -97,6 +87,7 @@ void maintainExternalConnection( void * parameters ){
 
             // Locks the remaining tasks so they don't try to send data over MQTT
             if ( xSemaphoreTake(xExternal_connection_semaphore, portMAX_DELAY ) == pdTRUE ){
+                if ( xSemaphoreTake(xExternal_connection_semaphore, portMAX_DELAY ) == pdTRUE ){
                 
                 //  Check if GPRS connection is close, if it is, re-opens
                 if ( !modem.isGprsConnected() ) sim_7000g.maintainGPRSconnection();
@@ -107,6 +98,8 @@ void maintainExternalConnection( void * parameters ){
                 if ( !mqtt.connected() ) mqtt_com.maintainMQTTConnection();
                 
                 // Frees the remaining tasks to comunicate over GPRS and MQTT
+                xSemaphoreGive(xExternal_connection_semaphore);
+                }
                 xSemaphoreGive(xExternal_connection_semaphore);
             }
         }
@@ -133,7 +126,7 @@ void setup() {
     
     pinMode(LED_PIN, OUTPUT);
 
-    xExternal_connection_semaphore = xSemaphoreCreateMutex();
+    xExternal_connection_semaphore = xSemaphoreCreateCounting( TASK_QTY, TASK_QTY);
     
     //  Sets up the MPU6050 class
     MPU_DATA.setup();
@@ -157,19 +150,13 @@ void setup() {
 
     xTaskCreatePinnedToCore( heartBeat, "Blinks the LED", 1024, NULL, 1, NULL, 1 );
 
-    xTaskCreatePinnedToCore( TaskMediumFreq, "Medium frequency data task", 2048, NULL, 2, xMediumFreq, 1 );
+    xTaskCreatePinnedToCore( TaskMediumFreq, "Medium frequency data task", 4096, NULL, 2, xMediumFreq, 1 );
     // vTaskSuspend( xMediumFreq );
 
     xTaskCreatePinnedToCore( TaskHighFreq, "High frequency data task", 2048, NULL, 2, xHighFreq, 1 );
     // vTaskSuspend( xHighFreq );
 
     xTaskCreatePinnedToCore( maintainExternalConnection, "GPRS MQTT connection", 2048, NULL, 3, NULL, 1 );
-
-    vTaskDelay( 2000 / portTICK_PERIOD_MS );
-
-    xTaskCreatePinnedToCore( taskUpdateGPS, "Updates GPS infos", 2048, NULL, 2, xGPSTaskHanddler, 1 );
-    // vTaskSuspend( xGPSTaskHanddler );
-
     
 }
 
