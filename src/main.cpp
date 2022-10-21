@@ -52,7 +52,7 @@ void TaskHighFreq( void * parameters ){
 
 //  Since GPS lock ocours at extremely low frequency, create a task just to update that data
 void taskUpdateGPS ( void * params ){
-    sim_7000g.turnGPSOn();
+    
     static TickType_t xDelay = g_states.GPSUpdatePeriod / portTICK_PERIOD_MS;
 
     for(;;){

@@ -39,31 +39,45 @@ TinyGsmClient GSMclient(modem);
 
 class SIM7000G{
 
-    public:
+    private:
+
         void turnGPSOn(void){
 
-            // Set SIM7000G GPIO4 LOW ,turn on GPS power
-            // CMD:AT+SGPIO=0,4,1,1
-            // Only in version 20200415 is there a function to control GPS power
             modem.sendAT("+SGPIO=0,4,1,1");
-            if (modem.waitResponse(1500L) != 1) {
-                DBG(" SGPIO=0,4,1,1 false ");
+            if ( !modem.waitResponse(1500L) ){
+                Serial.println("Coudn't turn GPS ON");
+                return;
             }
+
             vTaskDelay( 1000 / portTICK_PERIOD_MS );
-            modem.enableGPS();
+
+            modem.sendAT("+CGNSPWR=1");
+            if ( !modem.waitResponse(1500L) ){
+                Serial.println("Coudn't turn GPS ON");
+                return;
+            }
+
+            vTaskDelay( 1000 / portTICK_PERIOD_MS );
         }
 
         void turnGPSOff(void){
 
-            // Set SIM7000G GPIO4 LOW ,turn off GPS power
-            // CMD:AT+SGPIO=0,4,1,0
-            // Only in version 20200415 is there a function to control GPS power
             modem.sendAT("+SGPIO=0,4,1,0");
-            if (modem.waitResponse(/*10000L*/) != 1) {
-                DBG(" SGPIO=0,4,1,0 false ");
+            if ( !modem.waitResponse(1500L) ){
+                Serial.println("Coudn't turn GPS OFF");
+                return;
             }
+
             vTaskDelay( 1000 / portTICK_PERIOD_MS );
-            modem.disableGPS();
+
+            modem.sendAT("+CGNSPWR=0");
+            if ( !modem.waitResponse(1500L) ){
+                Serial.println("Coudn't turn GPS OFF");
+                return;
+            }
+
+            vTaskDelay( 1000 / portTICK_PERIOD_MS );
+
         }
 
     public:
@@ -164,39 +178,27 @@ class SIM7000G{
 
         bool update_GPS_data(){
 
+            this -> turnGPSOn();
             static TickType_t tickLimit = xTaskGetTickCount() + (g_states.GPSUpdatePeriod / portTICK_PERIOD_MS);
+            int tryOut = 5;
 
-            while( xTaskGetTickCount() < tickLimit ) {
+            for( int i = 0; i < tryOut; i++ ) {
                 // Update GPS data
                 if ( modem.getGPS( &this->CurrentGPSData.latitude, &this->CurrentGPSData.longitude, &this->CurrentGPSData.speed, &this->CurrentGPSData.altitude,
                                     &this->CurrentGPSData.vSat, &this->CurrentGPSData.uSat, &this->CurrentGPSData.Accuracy,
                                     &this->CurrentGPSData.year, &this->CurrentGPSData.month, &this->CurrentGPSData.day,
                                     &this->CurrentGPSData.hour, &this->CurrentGPSData.minute, &this->CurrentGPSData.second ) ){
 
-                                        Serial.println("GPS data");
-                                        Serial.print("latitude: ");
-                                        Serial.println(this->CurrentGPSData.latitude);
-                                        Serial.print("longitude: ");
-                                        Serial.println(this->CurrentGPSData.longitude);
-                                        Serial.print("altitude: ");
-                                        Serial.println(this->CurrentGPSData.altitude);
-                                        Serial.print("speed: ");
-                                        Serial.println(this->CurrentGPSData.speed);
-                                        Serial.print("vSat: ");
-                                        Serial.println(this->CurrentGPSData.vSat);
-                                        Serial.print("uSat: ");
-                                        Serial.println(this->CurrentGPSData.uSat);
-                                        Serial.print("Accuracy: ");
-                                        Serial.println(this->CurrentGPSData.Accuracy);
+                                        this -> turnGPSOff();
 
                                         //  If GPS data is collected
                                         return true;
-                                    }
-                vTaskDelay( 250 / portTICK_PERIOD_MS );
+                }
+                vTaskDelay( 1500 / portTICK_PERIOD_MS );
             }
 
-
             //  If GPS data is NOT collected
+            this->turnGPSOff();
             return false;
 
         }
