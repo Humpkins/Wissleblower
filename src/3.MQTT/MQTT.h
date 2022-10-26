@@ -14,7 +14,56 @@
 PubSubClient mqtt(GSMclient);
 
 class MQTT {
-    private:
+
+    public:
+        // Function to setup the first connection with the MQTT Broker
+        void setup() {
+
+            Serial.print("Connecting to MQTT Host ");
+            Serial.print(g_states.MQTTHost);
+            Serial.print(" with the following client ID ");
+            Serial.println(g_states.MQTTclientID);
+            Serial.print("Trying");
+
+            mqtt.setServer( g_states.MQTTHost, g_states.MQTTPort );
+
+            // Connect to MQTT Broker without username and password
+            bool status = mqtt.connect( g_states.MQTTclientID );
+            mqtt.setBufferSize(400);
+
+            // Or, if you want to authenticate MQTT:
+            //   bool status = mqtt.connect("GsmClientN", mqttUsername, mqttPassword);
+
+            if ( status == false ){
+                Serial.println("       [FAIL]");
+                Serial.println("[ERROR]    Handdle Broker connection fail");
+                while(1);
+            } else Serial.println("       [OK]");
+
+            // this->printMQTTstatus();
+
+        }
+
+        // Function to reconect to MQTT broker if it is disconnected
+        void maintainMQTTConnection() {
+            // If there is no mqtt conection, then try to connect
+
+            for ( int attempt = 0; attempt < RECONNECT_ATTEMPT_LIMIT; attempt++ ){
+                Serial.print(attempt);
+                Serial.print("  Reconecting to MQTT broker");
+
+                if ( mqtt.connect( g_states.MQTTclientID ) ){
+                    Serial.println("       [OK]");
+                    return;
+                } else Serial.println("       [FAIL]");
+                
+                // this->printMQTTstatus();
+            }
+
+            Serial.println("[ERROR]    Handdle Broker re-connection fail");
+            while(1);
+        }
+
         void printMQTTstatus(){
             const int state = mqtt.state();
 
@@ -54,54 +103,6 @@ class MQTT {
                     Serial.println("Non detected status");
                     break;
             }
-        }
-
-    public:
-        // Function to setup the first connection with the MQTT Broker
-        void setup() {
-
-            Serial.print("Connecting to MQTT Host ");
-            Serial.print(g_states.MQTTHost);
-            Serial.print(" with the following client ID ");
-            Serial.println(g_states.MQTTclientID);
-            Serial.print("Trying");
-
-            mqtt.setServer( g_states.MQTTHost, g_states.MQTTPort );
-
-            // Connect to MQTT Broker without username and password
-            bool status = mqtt.connect( g_states.MQTTclientID );
-
-            // Or, if you want to authenticate MQTT:
-            //   bool status = mqtt.connect("GsmClientN", mqttUsername, mqttPassword);
-
-            if ( status == false ){
-                Serial.println("       [FAIL]");
-                Serial.println("[ERROR]    Handdle Broker connection fail");
-                while(1);
-            } else Serial.println("       [OK]");
-
-            // this->printMQTTstatus();
-
-        }
-
-        // Function to reconect to MQTT broker if it is disconnected
-        void maintainMQTTConnection() {
-            // If there is no mqtt conection, then try to connect
-
-            for ( int attempt = 0; attempt < RECONNECT_ATTEMPT_LIMIT; attempt++ ){
-                Serial.print(attempt);
-                Serial.print("  Reconecting to MQTT broker");
-
-                if ( mqtt.connect( g_states.MQTTclientID ) ){
-                    Serial.println("       [OK]");
-                    return;
-                } else Serial.println("       [FAIL]");
-                
-                // this->printMQTTstatus();
-            }
-
-            Serial.println("[ERROR]    Handdle Broker re-connection fail");
-            while(1);
         }
 
 };

@@ -16,7 +16,7 @@ class states{
     const char APNUser[21] = "claro";
     const char APNPassword[21] = "claro";
 
-    const char MQTTHost[31] = "test.mosquitto.org";
+    const char MQTTHost[31] = "broker.hivemq.com";//"test.mosquitto.org";
     const int  MQTTPort = 1883;
     const char MQTTclientID[21] = "MotoTesteTCC";
     const char MQTTUsername[5] = "";
@@ -29,10 +29,10 @@ class states{
     const int16_t MQTTLowPeriod = 10000;
 
     const char MQTTMediumFrequencyTopic[31] = "MediumFrequency";
-    const int MQTTMediumPeriod = 1000;
+    const int MQTTMediumPeriod = 500;
 
     const char MQTTHighFrequencyTopic[31] = "HighFrequency";
-    const int MQTTHighPeriod = 500;
+    const int MQTTHighPeriod = 250;
 
     const char HOST[21] = "whistleblower";
 
