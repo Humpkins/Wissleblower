@@ -13,19 +13,61 @@
 
 PubSubClient mqtt(GSMclient);
 
+//  Callback function
+void someoneIsListenToUs(  char * topic, byte * payload, unsigned int length ) {
+
+    //  Convert the incomming byte array
+    char * incommingPayload = reinterpret_cast<char*>(payload);
+    incommingPayload[length] = '\0';
+
+    char topic_Wake[51];
+    sprintf( topic_Wake, "%s/%s", g_states.MQTTclientID, g_states.MQTTListenTopic );
+
+    //  If it is related to wake the sensors up or sleep them
+    if ( strcmp( topic, topic_Wake ) == 0 ) {
+
+        if ( strcmp( incommingPayload, "0x1" ) == 0 ) {
+
+            mqtt.publish( topic_Wake, "Yes master! Resuming the message system" );
+
+            vTaskResume( xHighFreq );
+
+            sim_7000g.turnGPSOn();
+            vTaskResume( xMediumFreq );
+
+            vTaskResume( xMQTTDeliver );
+
+        } else if ( strcmp( incommingPayload, "0x0" ) == 0 ) {
+
+            mqtt.publish( topic_Wake, "Yes master! Suspending the message system" );
+
+            vTaskSuspend( xHighFreq );
+
+            vTaskSuspend( xMediumFreq );
+            sim_7000g.turnGPSOff();
+
+            vTaskSuspend( xMQTTDeliver );
+
+        }
+    }
+
+    return;
+}
+
 class MQTT {
 
     public:
         // Function to setup the first connection with the MQTT Broker
         void setup() {
 
+            mqtt.setServer( g_states.MQTTHost, g_states.MQTTPort );
+            mqtt.setCallback( someoneIsListenToUs );
+
+
             Serial.print("Connecting to MQTT Host ");
             Serial.print(g_states.MQTTHost);
             Serial.print(" with the following client ID ");
-            Serial.println(g_states.MQTTclientID);
-            Serial.print("Trying");
-
-            mqtt.setServer( g_states.MQTTHost, g_states.MQTTPort );
+            Serial.print(g_states.MQTTclientID);
 
             // Connect to MQTT Broker without username and password
             bool status = mqtt.connect( g_states.MQTTclientID );
@@ -33,14 +75,22 @@ class MQTT {
 
             // Or, if you want to authenticate MQTT:
             //   bool status = mqtt.connect("GsmClientN", mqttUsername, mqttPassword);
-
-            if ( status == false ){
+            if ( !mqtt.connect( g_states.MQTTclientID ) ){
                 Serial.println("       [FAIL]");
                 Serial.println("[ERROR]    Handdle Broker connection fail");
                 while(1);
-            } else Serial.println("       [OK]");
+            } else {
+                Serial.println("       [OK]");
 
-            // this->printMQTTstatus();
+                //  Subscribe to topic
+                char topic[31];
+                sprintf( topic, "%s/%s", g_states.MQTTclientID, g_states.MQTTListenTopic );
+
+                Serial.print("Subscribing to ");
+                Serial.print(topic);
+                if ( !mqtt.subscribe(topic, 0) ) Serial.println("      [FAIL]");
+                else Serial.println("      [OK]");
+            }
 
         }
 
@@ -54,6 +104,15 @@ class MQTT {
 
                 if ( mqtt.connect( g_states.MQTTclientID ) ){
                     Serial.println("       [OK]");
+                    
+                    mqtt.setCallback( someoneIsListenToUs );
+                    mqtt.setBufferSize(400);
+
+                    //  Subscribe to topic
+                    char topic[31];
+                    sprintf( topic, "%s/%s", g_states.MQTTclientID, g_states.MQTTListenTopic );
+                    mqtt.subscribe(topic, 0);
+
                     return;
                 } else Serial.println("       [FAIL]");
                 

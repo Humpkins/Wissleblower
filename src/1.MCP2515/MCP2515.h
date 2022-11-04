@@ -93,6 +93,7 @@ class MCP2515 {
                     if ( this->IDs_Data.ID == g_states.BASE_BATTERY_ID && !already_checked[0] ){
 
                         // Read the BMS1 Data and save it to the gloabl state
+                        this->batteries[0]. current       = (this->IDs_Data.Content_Arr[2] * 100 + this->IDs_Data.Content_Arr[3]) * 0.1;
                         this->batteries[0].voltage        = (this->IDs_Data.Content_Arr[0] * 100 + this->IDs_Data.Content_Arr[1]) * 0.1; // deslocamento para a esqueda
                         this->batteries[0].SoC            = this->IDs_Data.Content_Arr[6];
                         this->batteries[0].temperature    = this->IDs_Data.Content_Arr[4];
@@ -105,6 +106,7 @@ class MCP2515 {
                     } else if ( this->IDs_Data.ID == (g_states.BASE_BATTERY_ID + 1) && !already_checked[1] ) {
 
                         // Read the BMS2 Data and save it to the gloabl state
+                        this->batteries[1]. current       = (this->IDs_Data.Content_Arr[2] * 100 + this->IDs_Data.Content_Arr[3]) * 0.1;
                         this->batteries[1].voltage        = (this->IDs_Data.Content_Arr[0] * 100 + this->IDs_Data.Content_Arr[1]) * 0.1; // deslocamento para a esqueda
                         this->batteries[1].SoC            = this->IDs_Data.Content_Arr[6];
                         this->batteries[1].temperature    = this->IDs_Data.Content_Arr[4];

@@ -1,4 +1,5 @@
 #include <Arduino.h>
+#include <main.h>
 
 #include "./config.h"
 
@@ -16,130 +17,126 @@
 
 #define TASK_QTY 2
 
-TaskHandle_t xMediumFreq;
-TaskHandle_t xHighFreq;
-TaskHandle_t xMQTTMediumFreq;
-TaskHandle_t xMQTTHighFreq;
-
-SemaphoreHandle_t xExternal_connection_semaphore = NULL;
-
-
 //  Sends the high frequency data over mqtt
 void TaskHighFreq( void * parameters ){
+    //  Suspend itself and wait to be awaken
+    vTaskSuspend(NULL);
 
     static TickType_t xDelay = g_states.MQTTHighPeriod / portTICK_PERIOD_MS;
 
     for (;;) {
-        for ( int i = 0; i < 2; i ++ ){
-            // Update the HIGH frequency data
-            Serial.print("Getting MCP data");
-            if ( !MCP_DATA.UpdateSamples() ) Serial.println("       [ERROR]  Handdle MCP packet loss");
-            else Serial.println("       [OK]");
+        // Serial.print("Getting MCP data");
+        if ( !MCP_DATA.UpdateSamples() ) Serial.println("       [MCP ERROR]  Handdle MCP packet loss");
+        // else Serial.println("       [MCP OK]");
 
-            Serial.print("Getting MCP data");
-            if ( !MPU_DATA.UpdateSamples() ) Serial.println("       [ERROR]  Handdle MPU sampling error");
-            else Serial.println("       [OK]");
+        // Serial.print("Getting MPU data");
+        if ( !MPU_DATA.UpdateSamples() ) Serial.println("       [MCP ERROR]  Handdle MPU sampling error");
+        // else Serial.println("       [MPU OK]");
 
-            vTaskDelay( xDelay );
-        }
-
-        vTaskResume(xMediumFreq);
-        vTaskSuspend(NULL);
-
+        vTaskDelay( xDelay );
     }
 }
 
 //  Sends the medium frequency data over mqtt
 void TaskMediumFreq( void * parameters ){
+    //  Suspend itself and wait to be awaken
+    vTaskSuspend(NULL);
 
     static TickType_t xDelay = g_states.MQTTMediumPeriod / portTICK_PERIOD_MS;
-    vTaskSuspend(NULL);
 
     for (;;) {
 
         // Update only the MEDIUM frequency data as the high frequency data is already updated by this point
-        Serial.println("Getting GPS data");
-        if ( !sim_7000g.updateGPSData() ) Serial.println("        [ERROR]  Handdle GPS sampling error");
-        else Serial.println("       [OK]");
-        vTaskResume(xHighFreq);
-        vTaskSuspend(NULL);
+        if ( xSemaphoreTake( xModem, ( 250 / portTICK_PERIOD_MS ) ) == pdTRUE ){
+            // Serial.print("Getting GPS data");
+            if ( !sim_7000g.updateGPSData() ) Serial.println("        [GPS ERROR]");
+            // else Serial.println("       [GPS OK]");
 
-        Serial.println("Getting GPRS data");
-        if ( !sim_7000g.update_GPRS_data() ) Serial.println("       [ERROR]  Handdle GPRS sampling error");
-        else Serial.println("       [OK]");
-        vTaskResume(xHighFreq);
-        vTaskSuspend(NULL);
+            xSemaphoreGive( xModem );
+        }
+
+        if ( xSemaphoreTake( xModem, ( 250 / portTICK_PERIOD_MS ) ) == pdTRUE ){
+            // Serial.print("Getting GPRS data");
+            if ( !sim_7000g.update_GPRS_data() ) Serial.println("       [GPRS ERROR]");
+            // else Serial.println("       [GPRS OK]");
+
+            xSemaphoreGive( xModem );
+        }
+
+        vTaskDelay(xDelay);
     }
 }
 
-void taskMediumFreqMQTT( void * parameters ){
-    
+void reconnect () {
+
+    //  Check if GPRS connection is close, if it is, re-opens
+    if ( !modem.isGprsConnected() ) sim_7000g.maintainGPRSconnection();
+
+    //  Check if MQTT connection is close, if it is, re-opens
+    if ( !mqtt.connected() ) mqtt_com.maintainMQTTConnection();
+
+}
+
+void taskSendOverMQTT ( void * parameters ){
+    //  Suspend itself and wait to be awaken
     vTaskSuspend(NULL);
-    static TickType_t xDelay = g_states.MQTTMediumPeriod / portTICK_PERIOD_MS;
 
-    for (;;){
-        if ( xSemaphoreTake(xExternal_connection_semaphore, (1500 / portTICK_PERIOD_MS) ) == pdTRUE ){
-            for ( int i = 0; i < 1; i++ ){
-                // Send medium frequency data through mqtt
-                Serial.print("MEDIUM freq");
-                mediumFrequency.sendMediumFrequencyDataOverMQTT();
+    static TickType_t xHighDelay = g_states.MQTTHighPeriod / portTICK_PERIOD_MS;
+    static TickType_t xMediumDelay = g_states.MQTTMediumPeriod / portTICK_PERIOD_MS;
 
-                vTaskDelay( xDelay );
-            }
-
-            xSemaphoreGive(xExternal_connection_semaphore);
-
-            vTaskResume(xMQTTHighFreq);
-            vTaskSuspend(NULL);
-        }
-    }
-}
-
-void taskHighFreqMQTT( void * parameters ){
-    static TickType_t xDelay = g_states.MQTTHighPeriod / portTICK_PERIOD_MS;
-
-    for (;;){
-        if ( xSemaphoreTake(xExternal_connection_semaphore, (1500 / portTICK_PERIOD_MS) ) == pdTRUE ){
-            for ( int i = 0; i < 2; i++ ){                
-                // Send high frequency data through mqtt
-                Serial.print("HIGH freq");
-                highFrequency.sendMHighFrequencyDataOverMQTT();
-
-                vTaskDelay( xDelay );
-            }
-
-            xSemaphoreGive(xExternal_connection_semaphore);
-
-            vTaskResume(xMQTTMediumFreq);
-            vTaskSuspend(NULL);
-        }
-    }
-}
-
-void maintainExternalConnection( void * parameters ){
-    static TickType_t xDelay = 60000 / portTICK_PERIOD_MS;
+    TickType_t itsHighTime = xTaskGetTickCount();
+    TickType_t itsMediumTime = xTaskGetTickCount();
 
     for (;;) {
-                            
-        //  Check if GPRS connection is close, if it is, re-opens
-        if ( !modem.isGprsConnected() ) {
-            if ( xSemaphoreTake(xExternal_connection_semaphore, portMAX_DELAY ) == pdTRUE ) {
-                sim_7000g.maintainGPRSconnection();
-                xSemaphoreGive(xExternal_connection_semaphore);
+
+        if ( xTaskGetTickCount() - itsHighTime > xHighDelay ) {
+            if ( xSemaphoreTake( xModem, ( 200 / portTICK_PERIOD_MS ) ) == pdTRUE ) {
+                // Send high frequency data through mqtt
+                if ( !highFrequency.sendMHighFrequencyDataOverMQTT() ) Serial.println("     [HIGH ERROR]");
+                itsHighTime = xTaskGetTickCount();
+
+                xSemaphoreGive( xModem );
             }
         }
 
-        //  Check if MQTT connection is close, if it is, re-opens
-        if ( !mqtt.connected() ) {
-            if ( xSemaphoreTake(xExternal_connection_semaphore, portMAX_DELAY ) == pdTRUE ) {
-                mqtt_com.maintainMQTTConnection();
-                xSemaphoreGive(xExternal_connection_semaphore);
+        vTaskDelay( 10 / portTICK_PERIOD_MS );
+
+        if ( xTaskGetTickCount() - itsMediumTime > xMediumDelay ) {
+            if ( xSemaphoreTake( xModem, ( 200 / portTICK_PERIOD_MS ) ) == pdTRUE ) {
+                // Send medium frequency data through mqtt
+                if ( !mediumFrequency.sendMediumFrequencyDataOverMQTT() ) Serial.println("     [HIGH ERROR]");
+
+                itsMediumTime = xTaskGetTickCount();
+
+                xSemaphoreGive( xModem );
             }
         }
 
-        vTaskDelay( xDelay );
+        vTaskDelay( 10 / portTICK_PERIOD_MS );
     }
-        
+}
+
+void taskLoopClientMQTT ( void * parameters ) {
+    char wakeTopic[51];
+    sprintf( wakeTopic, "%s/%s", g_states.MQTTclientID, g_states.MQTTWakeTopic );
+    TickType_t maintainConnectionUp_Time = xTaskGetTickCount();
+
+    for(;;){
+
+        if ( xSemaphoreTake( xModem, portMAX_DELAY ) == pdTRUE ) {
+            mqtt.loop();
+
+            // Prevent from Idle disconnection
+            if ( xTaskGetTickCount() - maintainConnectionUp_Time > (7500 / portTICK_PERIOD_MS) ){
+                if ( !mqtt.publish( wakeTopic, "I'm up..." ) ) reconnect();
+                maintainConnectionUp_Time = xTaskGetTickCount();
+            }
+
+            xSemaphoreGive( xModem );
+        }
+
+        vTaskDelay( 1000 / portTICK_PERIOD_MS );
+    }
 }
 
 // Task to hartbeat by buildint LED
@@ -161,7 +158,7 @@ void setup() {
     
     pinMode(LED_PIN, OUTPUT);
 
-    xExternal_connection_semaphore = xSemaphoreCreateMutex();
+    xModem = xSemaphoreCreateMutex();
     
     //  Sets up the MPU6050 class
     MPU_DATA.setup();
@@ -183,15 +180,13 @@ void setup() {
 
     delay(1000);
 
-    xTaskCreatePinnedToCore( maintainExternalConnection, "GPRS MQTT connection", 2048, NULL, 3, NULL, 1 );
+    xTaskCreatePinnedToCore( TaskMediumFreq, "Medium frequency data task", 4096, NULL, 2, &xMediumFreq, 0 );
+    xTaskCreatePinnedToCore( TaskHighFreq, "High frequency data task", 2048, NULL, 2, &xHighFreq, 0 );
 
-    // xTaskCreatePinnedToCore( TaskMediumFreq, "Medium frequency data task", 4096, NULL, 2, &xMediumFreq, 0 );
-    // xTaskCreatePinnedToCore( TaskHighFreq, "High frequency data task", 2048, NULL, 2, &xHighFreq, 0 );
+    xTaskCreatePinnedToCore( taskSendOverMQTT, "MQTT data task", 4096, NULL, 2, &xMQTTDeliver, 1 );
+    xTaskCreatePinnedToCore( taskLoopClientMQTT, "MQTT client loop", 4096, NULL, 1, NULL, 1 );
 
-    xTaskCreatePinnedToCore( taskMediumFreqMQTT, "MQTT medium frequency data task", 2048, NULL, 2, &xMQTTMediumFreq, 1);
-    xTaskCreatePinnedToCore( taskHighFreqMQTT, "MQTT high frequency data task", 2048, NULL, 2, &xMQTTHighFreq, 1);
-
-    xTaskCreatePinnedToCore( heartBeat, "Blinks the LED", 1024, NULL, 1, NULL, 1 );
+    xTaskCreatePinnedToCore( heartBeat, "Blinks the LED", 1024, NULL, 1, NULL, 0 );
     
 }
 

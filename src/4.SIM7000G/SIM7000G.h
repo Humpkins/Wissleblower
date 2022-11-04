@@ -13,6 +13,7 @@
 #include <TinyGsmClient.h>
 #include <ArduinoJson.h>
 #include <soc/rtc_wdt.h>
+#include "../5.Utils/utils.h"
 
 #ifndef CONFIG_DATA
     #include "../config.h"
@@ -40,20 +41,24 @@ TinyGsmClient GSMclient(modem);
 
 class SIM7000G{
 
-    private:
+    public:
 
         void turnGPSOn(void){
 
-            modem.sendAT("+SGPIO=0,4,1,1");
+            SerialAT.print("AT+SGPIO=0,4,1,1\r\n");
             vTaskDelay( 500 / portTICK_PERIOD_MS );
-            modem.sendAT("+CGNSPWR=1");
+            SerialAT.print("AT+CGNSPWR=1\r\n");
+            vTaskDelay( 500 / portTICK_PERIOD_MS );
+            SerialAT.print("AT+CGNSHOT");
+            vTaskDelay( 500 / portTICK_PERIOD_MS );
         }
 
         void turnGPSOff(void){
 
-            modem.sendAT("+SGPIO=0,4,1,0");
+            SerialAT.print("AT+SGPIO=0,4,1,0\r\n");
             vTaskDelay( 500 / portTICK_PERIOD_MS );
-            modem.sendAT("+CGNSPWR=0");
+            SerialAT.print("AT+CGNSPWR=0\r\n");
+            vTaskDelay( 500 / portTICK_PERIOD_MS );
 
         }
 
@@ -81,7 +86,7 @@ class SIM7000G{
             int cellID = 0;
             int MCC = 0;
             int MNC = 0;
-            int LAC = 0;
+            char LAC[7] = "";
         };
         // Instantiate the GPRS structure
         struct gprsInfo CurrentGPRSData;
@@ -89,15 +94,9 @@ class SIM7000G{
         void setup(){
 
             SerialAT.begin(9600, SERIAL_8N1, MODEM_RX, MODEM_TX, false);
-            Serial.println("Setting GPRS...");
 
             // Set modem reset, enable, power pins
-            // pinMode(MODEM_PWKEY, OUTPUT);
-            // pinMode(MODEM_RST, OUTPUT);
             pinMode(MODEM_POWER_ON, OUTPUT);
-
-            // digitalWrite(MODEM_PWKEY, LOW);
-            // digitalWrite(MODEM_RST, HIGH);
             digitalWrite(MODEM_POWER_ON, HIGH);
 
             SerialAT.begin(9600);
@@ -112,8 +111,8 @@ class SIM7000G{
             if (modem.gprsConnect(g_states.APN, g_states.APNPassword, g_states.APNPassword))
                 Serial.println("       [OK]");
             else {
-                Serial.println("       [FAIL]");
-                Serial.println("[ERROR]    Handdle APN connection fail");
+                Serial.println("       [RECONNECTION FAIL]");
+                Serial.println("[ERROR]    Handdle APN connection RECONNECTION fail");
                 while(1);
             }
             
@@ -123,8 +122,8 @@ class SIM7000G{
                     Serial.println("       [OK]");
 
                 } else {
-                    Serial.println("       [FAIL]");
-                    Serial.println("Handlle GPRS connection fail");
+                    Serial.println("       [RECONNECTION FAIL]");
+                    Serial.println("Handlle GPRS connection RECONNECTION fail");
                     while(1);
                 }
             }
@@ -141,6 +140,7 @@ class SIM7000G{
                 
                 if ( modem.gprsConnect( g_states.APN, g_states.APNPassword, g_states.APNPassword ) ){
                     Serial.println("       [OK]");
+                    this->turnGPSOn();
                     return;
                 } else Serial.println("       [FAIL]");
             }
@@ -150,33 +150,47 @@ class SIM7000G{
         }
 
         bool updateGPSData(){
-            this -> turnGPSOn();
+
+            char response[105]; //  <- If Stack smash ocours, increase this value
+            char midBuff = '\n';
+            int position = 0;
+            bool startRead = false;
+            int commas_positions[22];    // array to store commas position inside the AT command's char array
+
+            bool retorna_true = false;
 
             int tryOut = 5;
-            for ( int i = 0; i < tryOut; i++ ) {
-                
-                SerialAT.print("AT+CGNSINF");
-                vTaskDelay( 1000 / portTICK_PERIOD_MS );
+            for ( int tries = 0; tries < tryOut; tries++ ) {
 
-                char response[95];
-                char midBuff = '\n';
-                int position = 0;
+                SerialAT.print("AT+CGNSINF\r\n");
+                vTaskDelay( 500 / portTICK_PERIOD_MS );
+
+                midBuff = '\n';
+                position = 0;
+                startRead = false;
                 while ( SerialAT.available() ){
                     midBuff = SerialAT.read();
+                    
+                    //  Start store the read serial data
+                    if ( midBuff == '+' ) startRead = true;
 
-                    if ( midBuff == '\n' ) break;
-                    response[ position ] = midBuff;
-                    position++;
+                    // Top read on the first lineBreak
+                    if ( startRead && midBuff == '\n' ) break;
+
+                    //  Read data
+                    if ( startRead ){
+                        response[ position ] = midBuff;
+                        position++;
+                    }
                 }
                 response[position] = '\0';
+                // Serial.println(response);
 
-                if ( strstr( response, "+CGNSINF: 1, 1" ) == NULL ) {
-                    vTaskDelay( 150 / portTICK_PERIOD_MS );
-                    continue;
-                } else {
+                if ( strstr( response, "+CGNSINF: 1,1" ) == NULL ) continue;
+                else {
+
                     // Split the response's parameters position in the char array
                     position = 0;               // position in array inside the loop
-                    int commas_positions[9];    // array to store commas position inside the AT command's char array
                     for ( int i = 0; i < sizeof(response); i++){
                         
                         // If finds comma, store it's position
@@ -184,7 +198,6 @@ class SIM7000G{
                             commas_positions[position] = i;
                             position++;
                         }
-                        
                     }
 
 
@@ -196,94 +209,94 @@ class SIM7000G{
                     // First, the Latitude
                     char Latitude[11];
                     position = 0;
-                    for ( int i = commas_positions[2]; i < commas_positions[3]; i++  ){
+                    for ( int i = commas_positions[2] + 1; i < commas_positions[3]; i++  ){
                         Latitude[position] = response[i];
                         position++;
                     }
                     Latitude[position] = '\0';
-                    if ( sscanf( Latitude, "%.6f", this->CurrentGPSData.latitude ) == 0 ) Serial.println("Error on parsing the Latitude info");
+                    if ( Latitude[0] != '\0' ) this->CurrentGPSData.latitude = std::stof(Latitude);
 
                     // First, the Longitude
                     char Longitude[12];
                     position = 0;
-                    for ( int i = commas_positions[3]; i < commas_positions[4]; i++  ){
+                    for ( int i = commas_positions[3] + 1; i < commas_positions[4]; i++  ){
                         Longitude[position] = response[i];
                         position++;
                     }
                     Longitude[position] = '\0';
-                    if ( sscanf( Longitude, "%.6f", this->CurrentGPSData.longitude ) == 0 ) Serial.println("Error on parsing the Longitude info");
+                    if ( Longitude[0] != '\0' ) this->CurrentGPSData.longitude = std::stof(Longitude);
 
                     // First, the Altitude
                     char Altitude[9];
                     position = 0;
-                    for ( int i = commas_positions[4]; i < commas_positions[5]; i++  ){
+                    for ( int i = commas_positions[4] + 1; i < commas_positions[5]; i++  ){
                         Altitude[position] = response[i];
                         position++;
                     }
                     Altitude[position] = '\0';
-                    if ( sscanf( Altitude, "%.1f", this->CurrentGPSData.altitude ) == 0 ) Serial.println("Error on parsing the Altitude info");
+                    if ( Altitude[0] != '\0' ) this->CurrentGPSData.altitude = std::stof(Altitude);
 
                     // First, the speed
                     char speed[7];
                     position = 0;
-                    for ( int i = commas_positions[5]; i < commas_positions[6]; i++  ){
+                    for ( int i = commas_positions[5] + 1; i < commas_positions[6]; i++  ){
                         speed[position] = response[i];
                         position++;
                     }
                     speed[position] = '\0';
-                    if ( sscanf( speed, "%.2f", this->CurrentGPSData.speed ) == 0 ) Serial.println("Error on parsing the Speed info");
+                    if ( speed[0] != '\0' ) this->CurrentGPSData.speed = std::stof(speed);
 
                     // First, the orientation
                     char orientation[7];
                     position = 0;
-                    for ( int i = commas_positions[6]; i < commas_positions[7]; i++  ){
+                    for ( int i = commas_positions[6] + 1; i < commas_positions[7]; i++  ){
                         orientation[position] = response[i];
                         position++;
                     }
                     orientation[position] = '\0';
-                    if ( sscanf( orientation, "%.2f", this->CurrentGPSData.orientation ) == 0 ) Serial.println("Error on parsing the Orientation info");
+                    if ( orientation[0] != '\0' ) this->CurrentGPSData.orientation = std::stof(orientation);
 
                     // First, the GNSS_Satelites_in_view
                     char GNSS_Satelites_in_view[3];
                     position = 0;
-                    for ( int i = commas_positions[13]; i < commas_positions[14]; i++  ){
+                    for ( int i = commas_positions[13] + 1; i < commas_positions[14]; i++  ){
                         GNSS_Satelites_in_view[position] = response[i];
                         position++;
                     }
                     GNSS_Satelites_in_view[position] = '\0';
-                    if ( sscanf( GNSS_Satelites_in_view, "%.2f", this->CurrentGPSData.vSatGNSS ) == 0 ) Serial.println("Error on parsing the Viewd Satelites info");
+                    if ( GNSS_Satelites_in_view[0] != '\0' ) this->CurrentGPSData.vSatGNSS = std::stoi(GNSS_Satelites_in_view);
 
                     // First, the GPS_Satelites_in_use
                     char GPS_Satelites_in_use[3];
                     position = 0;
-                    for ( int i = commas_positions[14]; i < commas_positions[15]; i++  ){
+                    for ( int i = commas_positions[14] + 1; i < commas_positions[15]; i++  ){
                         GPS_Satelites_in_use[position] = response[i];
                         position++;
                     }
                     GPS_Satelites_in_use[position] = '\0';
-                    if ( sscanf( GPS_Satelites_in_use, "%.2f", this->CurrentGPSData.uSatGPS ) == 0 ) Serial.println("Error on parsing the Used GPS Satelites info");
+                    if ( GPS_Satelites_in_use[0] != '\0' ) this->CurrentGPSData.uSatGPS = std::stoi(GPS_Satelites_in_use);
 
                     // First, the GLONASS_Satelites_in_use
                     char GLONASS_Satelites_in_use[3];
                     position = 0;
-                    for ( int i = commas_positions[15]; i < commas_positions[16]; i++  ){
+                    for ( int i = commas_positions[15] + 1; i < commas_positions[16]; i++  ){
                         GLONASS_Satelites_in_use[position] = response[i];
                         position++;
                     }
                     GLONASS_Satelites_in_use[position] = '\0';
-                    if ( sscanf( GLONASS_Satelites_in_use, "%.2f", this->CurrentGPSData.uSatGLONASS ) == 0 ) Serial.println("Error on parsing the Used GLONASS Satelites info");
-
-                    this->turnGPSOff();
+                    if ( GLONASS_Satelites_in_use[0] != '\0' ) this->CurrentGPSData.uSatGLONASS = std::stoi(GLONASS_Satelites_in_use);
 
                     // If read, return true
-                    return true;
+                    // return true;
+                    retorna_true = true;
+                    break;
                 }
+
+                vTaskDelay( 500 / portTICK_PERIOD_MS );
             }
 
-            this->turnGPSOff();
-
             //  If could not lock GPS data in <tryOut> times, return false
-            return false;
+            return retorna_true;
 
         }
 
@@ -297,10 +310,10 @@ class SIM7000G{
             // Now the chaotic part: Get the Cell tower info.
             // This is messy because TinyGSM lib still doesn't have specific function for this job, so we have to parse our way out of it
             int tryOut = 5;
-            for ( int i = 0; i < tryOut; i++ ){
+            for ( int tries = 0; tries < tryOut; tries++ ){
 
                 SerialAT.print("AT+CPSI?\r\n");
-                vTaskDelay( 500 / portTICK_PERIOD_MS );
+                vTaskDelay( 250 / portTICK_PERIOD_MS );
 
                 // Read the AT command's response
                 char response[70];  // Buffer for the AT command's response
@@ -316,83 +329,80 @@ class SIM7000G{
                 }
                 response[position] = '\0';
 
-                if ( strstr( response, "+CPSI: GSM,Online," ) == NULL ) {
-                    vTaskDelay( 150 / portTICK_PERIOD_MS );
-                    continue;
-                }
-
-                // Split the response's parameters position in the char array
-                position = 0;               // position in array inside the loop
-                int commas_positions[9];    // array to store commas position inside the AT command's char array
-                for ( int i = 0; i < sizeof(response); i++){
-                    
-                    // If finds comma, store it's position
-                    if ( response[i] == ',' ){
-                        commas_positions[position] = i;
-                        position++;
+                if ( strstr( response, "+CPSI: GSM,Online," ) == NULL ) continue;
+                else {
+                    // Split the response's parameters position in the char array
+                    position = 0;               // position in array inside the loop
+                    int commas_positions[9];    // array to store commas position inside the AT command's char array
+                    for ( int i = 0; i < sizeof(response); i++){
+                        
+                        // If finds comma, store it's position
+                        if ( response[i] == ',' ){
+                            commas_positions[position] = i;
+                            position++;
+                        }
+                        
                     }
                     
-                }
-                
-                /*   ____________________________________________________________________________________
-                    |                                                                                    |
-                    | As we only looking for the 1st, 3rd, 4th, 5th and 6th parameters, we only retrieve them |
-                    |____________________________________________________________________________________|
-                */
-                // First, the Operational mode
-                char opMode[11];
-                position = 0;
-                for ( int i = 0; i < commas_positions[0]; i++  ){
-                    opMode[position] = response[i];
-                    position++;
-                }
-                opMode[position] = '\0';
+                    /*   ____________________________________________________________________________________
+                        |                                                                                    |
+                        | As we only looking for the 1st, 3rd, 4th, 5th and 6th parameters, we only retrieve them |
+                        |____________________________________________________________________________________|
+                    */
+                    // First, the Operational mode
+                    position = 0;
+                    for ( int i = 7; i < commas_positions[0]; i++  ){
+                        this->CurrentGPRSData.operationalMode[position] = response[i];
+                        position++;
+                    }
+                    this->CurrentGPRSData.operationalMode[position] = '\0';
 
-                // Next, the MCC
-                char mcc[5];
-                position = 0;
-                for ( int i = commas_positions[1] + 1; response[i] != '-'; i++  ){
-                    mcc[position] = response[i];
-                    position++;
-                }
-                mcc[position] = '\0';
-                // Converts the mcc char array to int and stores it
-                if ( sscanf( mcc, "%d", &this->CurrentGPRSData.MCC ) == 0 ) Serial.println("Medium frequency data: Error on parsing MCC data");
+                    // Next, the MCC
+                    char mcc[5];
+                    position = 0;
+                    for ( int i = commas_positions[1] + 1; response[i] != '-'; i++  ){
+                        mcc[position] = response[i];
+                        position++;
+                    }
+                    mcc[position] = '\0';
+                    // Converts the mcc char array to int and stores it
+                    if ( sscanf( mcc, "%d", &this->CurrentGPRSData.MCC ) == 0 ) Serial.println("Medium frequency data: Error on parsing MCC data");
 
-                // Next, the MNC
-                char mnc[3];
-                position = 0;
-                for ( int i = commas_positions[1] + 5; i < commas_positions[2]; i++  ){
-                    mnc[position] = response[i];
-                    position++;
-                }
-                mnc[position] = '\0';
-                // Converts the mnc char array to int and stores it
-                if ( sscanf( mnc, "%d", &this->CurrentGPRSData.MNC ) == 0 ) Serial.println("Medium frequency data: Error on parsing MNC data");
+                    // Next, the MNC
+                    char mnc[3];
+                    position = 0;
+                    for ( int i = commas_positions[1] + 5; i < commas_positions[2]; i++  ){
+                        mnc[position] = response[i];
+                        position++;
+                    }
+                    mnc[position] = '\0';
+                    // Converts the mnc char array to int and stores it
+                    if ( sscanf( mnc, "%d", &this->CurrentGPRSData.MNC ) == 0 ) Serial.println("Medium frequency data: Error on parsing MNC data");
 
-                // Next, the LAC
-                char lac[4];
-                position = 0;
-                for ( int i = commas_positions[2] + 1; i < commas_positions[3]; i++  ){
-                    lac[position] = response[i];
-                    position++;
-                }
-                lac[position] = '\0';
-                // Converts the lac char array to int and stores it
-                if ( sscanf( lac, "%d", &this->CurrentGPRSData.LAC) == 0 ) Serial.println("Medium frequency data: Error on parsing LAC data");
+                    // Next, the LAC
+                    position = 0;
+                    for ( int i = commas_positions[2] + 1; i < commas_positions[3]; i++  ){
+                        this->CurrentGPRSData.LAC[position] = response[i];
+                        position++;
+                    }
+                    this->CurrentGPRSData.LAC[position] = '\0';
 
-                // Finally, the CellID. In this case, it needs only the first 3 char from the AT command response's parametter
-                char cell_id[4];
-                position = 0;
-                for ( int i = commas_positions[3] + 1; i < commas_positions[4]; i++  ){
-                    cell_id[position] = response[i];
-                    position++;
-                }
-                cell_id[position] = '\0';
-                // Converts the lac char array to int and stores it
-                if ( sscanf( cell_id, "%d", &this->CurrentGPRSData.cellID ) == 0 ) Serial.println("Medium frequency data: Error on parsing CellID data");
+                    // Finally, the CellID. In this case, it needs only the first 3 char from the AT command response's parametter
+                    char cell_id[4];
+                    position = 0;
+                    for ( int i = commas_positions[3] + 1; i < commas_positions[4]; i++  ){
+                        cell_id[position] = response[i];
+                        position++;
+                    }
+                    cell_id[position] = '\0';
+                    // Converts the cell_id char array to int and stores it
+                    if ( sscanf( cell_id, "%d", &this->CurrentGPRSData.cellID ) == 0 ) Serial.println("Medium frequency data: Error on parsing CellID data");
 
-                return true;
+                    return true;                 
+                }
+
+                vTaskDelay( 250/ portTICK_PERIOD_MS );
+
             }
 
             return false;

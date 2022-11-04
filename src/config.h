@@ -25,14 +25,18 @@ class states{
     const char MQTTDataTopic[14] = "potenciometro";
     const char MQTTTopic[31] = "Teste_moto_cliente_tcc";
 
+    const char MQTTWakeTopic[11] = "Wake";
+
     const char MQTTLowFrequencyTopic[31] = "LowFrequency";
     const int16_t MQTTLowPeriod = 10000;
 
     const char MQTTMediumFrequencyTopic[31] = "MediumFrequency";
-    const int MQTTMediumPeriod = 500;
+    const int MQTTMediumPeriod = 1000;
 
     const char MQTTHighFrequencyTopic[31] = "HighFrequency";
-    const int MQTTHighPeriod = 250;
+    const int MQTTHighPeriod = 500;
+
+    const char MQTTListenTopic[31] = "YesMaster";
 
     const char HOST[21] = "whistleblower";
 
