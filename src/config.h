@@ -36,7 +36,7 @@ class states{
     const char MQTTHighFrequencyTopic[31] = "HighFrequency";
     const int MQTTHighPeriod = 500;
 
-    const char MQTTListenTopic[31] = "YesMaster";
+    const char MQTTListenTopic[31] = "Are_u_talking_to_me?";
 
     const char HOST[21] = "whistleblower";
 

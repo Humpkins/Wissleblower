@@ -178,6 +178,11 @@ void setup() {
     // Sets up the MQTT class
     mqtt_com.setup();
 
+    //  Sendo good morning message
+    char topic_Wake[ sizeof(g_states.MQTTclientID) + sizeof(g_states.MQTTWakeTopic) + 2 ];
+    sprintf( topic_Wake, "%s/%s", g_states.MQTTclientID, g_states.MQTTWakeTopic );
+    mqtt.publish( topic_Wake, "Just woke. Good morning!" );
+
     delay(1000);
 
     xTaskCreatePinnedToCore( TaskMediumFreq, "Medium frequency data task", 4096, NULL, 2, &xMediumFreq, 0 );
@@ -190,4 +195,5 @@ void setup() {
     
 }
 
+//  We'll not need this task, so we delete it
 void loop(){ vTaskDelete(NULL); };

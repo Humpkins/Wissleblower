@@ -1,7 +1,7 @@
 #include <Arduino.h>
 #include <ArduinoJson.h>
 
-StaticJsonDocument<300/*256*/> medium_freq_root;
+StaticJsonDocument<256> medium_freq_root;
 
 class mediumFrequencyMQTT {
 
@@ -29,7 +29,7 @@ class mediumFrequencyMQTT {
             medium_freq_root["LAC"] =                     sim_7000g.CurrentGPRSData.LAC;
 
             // Serialize JSON Object to array of string
-            char MediumFrequencyDataBuffer[350];
+            char MediumFrequencyDataBuffer[measureJson(medium_freq_root) + 1];
             serializeJson(medium_freq_root, MediumFrequencyDataBuffer, measureJson(medium_freq_root) + 1);
 
             // Send data to Medium Frequency topic

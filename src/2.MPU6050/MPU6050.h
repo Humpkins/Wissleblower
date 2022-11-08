@@ -135,8 +135,12 @@ class MPU {
 
                         // display Euler angles in degrees
                         mpu.dmpGetQuaternion( &this->MPUData.q, this->fifoBuffer );
+                        mpu.dmpGetAccel(&this->MPUData.aa, fifoBuffer);
                         mpu.dmpGetGravity( &this->MPUData.gravity, &this->MPUData.q );
                         mpu.dmpGetYawPitchRoll( this->MPUData.ypr, &this->MPUData.q, &this->MPUData.gravity );
+                        mpu.dmpGetLinearAccel(&this->MPUData.aaReal, &this->MPUData.aa, &this->MPUData.gravity);
+                        mpu.dmpGetLinearAccelInWorld(&this->MPUData.aaWorld, &this->MPUData.aaReal, &this->MPUData.q);
+
                         this->MPUData.ypr[0] *= (180/M_PI);
                         this->MPUData.ypr[1] *= (180/M_PI);
                         this->MPUData.ypr[2] *= (180/M_PI);

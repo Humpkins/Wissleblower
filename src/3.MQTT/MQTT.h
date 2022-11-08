@@ -20,13 +20,13 @@ void someoneIsListenToUs(  char * topic, byte * payload, unsigned int length ) {
     char * incommingPayload = reinterpret_cast<char*>(payload);
     incommingPayload[length] = '\0';
 
-    char topic_Wake[51];
+    char topic_Wake[ sizeof(g_states.MQTTclientID) + sizeof(g_states.MQTTListenTopic) + 2 ];
     sprintf( topic_Wake, "%s/%s", g_states.MQTTclientID, g_states.MQTTListenTopic );
 
     //  If it is related to wake the sensors up or sleep them
     if ( strcmp( topic, topic_Wake ) == 0 ) {
 
-        if ( strcmp( incommingPayload, "0x1" ) == 0 ) {
+        if ( strcmp( incommingPayload, "getUp!" ) == 0 ) {
 
             mqtt.publish( topic_Wake, "Yes master! Resuming the message system" );
 
@@ -37,7 +37,7 @@ void someoneIsListenToUs(  char * topic, byte * payload, unsigned int length ) {
 
             vTaskResume( xMQTTDeliver );
 
-        } else if ( strcmp( incommingPayload, "0x0" ) == 0 ) {
+        } else if ( strcmp( incommingPayload, "goSleep" ) == 0 ) {
 
             mqtt.publish( topic_Wake, "Yes master! Suspending the message system" );
 
@@ -48,6 +48,9 @@ void someoneIsListenToUs(  char * topic, byte * payload, unsigned int length ) {
 
             vTaskSuspend( xMQTTDeliver );
 
+        } else if ( strcmp( incommingPayload, "resetUrSelf" ) == 0 ) {
+            mqtt.publish( topic_Wake, "Yes master! restarting the system. I'll be back in 1 minute" );
+            ESP.restart();
         }
     }
 
@@ -63,7 +66,6 @@ class MQTT {
             mqtt.setServer( g_states.MQTTHost, g_states.MQTTPort );
             mqtt.setCallback( someoneIsListenToUs );
 
-
             Serial.print("Connecting to MQTT Host ");
             Serial.print(g_states.MQTTHost);
             Serial.print(" with the following client ID ");
@@ -71,7 +73,7 @@ class MQTT {
 
             // Connect to MQTT Broker without username and password
             bool status = mqtt.connect( g_states.MQTTclientID );
-            mqtt.setBufferSize(400);
+            mqtt.setBufferSize(450);
 
             // Or, if you want to authenticate MQTT:
             //   bool status = mqtt.connect("GsmClientN", mqttUsername, mqttPassword);
@@ -83,7 +85,7 @@ class MQTT {
                 Serial.println("       [OK]");
 
                 //  Subscribe to topic
-                char topic[31];
+                char topic[sizeof(g_states.MQTTclientID) + sizeof(g_states.MQTTListenTopic) + 2];
                 sprintf( topic, "%s/%s", g_states.MQTTclientID, g_states.MQTTListenTopic );
 
                 Serial.print("Subscribing to ");
@@ -106,10 +108,10 @@ class MQTT {
                     Serial.println("       [OK]");
                     
                     mqtt.setCallback( someoneIsListenToUs );
-                    mqtt.setBufferSize(400);
+                    mqtt.setBufferSize(450);
 
                     //  Subscribe to topic
-                    char topic[31];
+                    char topic[sizeof(g_states.MQTTclientID) + sizeof(g_states.MQTTListenTopic) + 2];
                     sprintf( topic, "%s/%s", g_states.MQTTclientID, g_states.MQTTListenTopic );
                     mqtt.subscribe(topic, 0);
 
