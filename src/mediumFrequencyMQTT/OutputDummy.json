@@ -1,27 +1,17 @@
 {
-    "Latitude": -99.999999,
-    "Longitude": -99.999999,
-    "GPS_Speed": 999.99,
-    "Altitude": 99999999,
-    "SatelitesInView": 99,
-    "SatelitesInUse": 99,
-
-    "BMS1_Voltage": 99,
-    "BMS1_SoC": 999,
-    "BMS1_Temperature": 99,
-    "BMS1_capacity": 99,
-
-    "BMS2_Voltage": 99,
-    "BMS2_SoC": 999,
-    "BMS2_Temperature": 99,
-    "BMS2_capacity": 99,
-
-    "GPRS_SingalQuality": 99,
-    "cellID": 999,
-    "MCC": 9999,
-    "MNC": 9999,
-    "LAC": 999,
-
-    "Motor_Temperature": 99,
-    "Controller_Temperature": 99
+    "Latitude": -8.186256409,
+    "Longitude": -34.92202759,
+    "GPS_Speed": 0,
+    "Altitude": 4.699999809,
+    "Orientation": 0,
+    "SatelitesInViewGNSS": 21,
+    "SatelitesInUseGPS": 6,
+    "SatelitesInUseGLONASS": 2,
+    "GPRS_SingalQuality": 21,
+    "GPRS_Operational_Mode": "GSM",
+    "cellID": 20075,
+    "MCC": 724,
+    "MNC": 5,
+    "LAC": "0x1695",
+    "Firmware_Ver": "1.0.1"
 }

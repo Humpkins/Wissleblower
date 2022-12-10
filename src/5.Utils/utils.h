@@ -1,6 +1,7 @@
 #include <Arduino.h>
 
 class UTILS {
+    
     public:
         bool ParseCharArray( char * desiredChar, char * response,
                                 int position, char splitter, bool isLast = false ){

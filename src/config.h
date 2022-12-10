@@ -12,7 +12,9 @@ StaticJsonDocument<800> puff;
 
 class states{
   public:
-    const char APN[21] = "claro.com.br";
+    const char APN_GPRS[21] = "claro.com.br";
+    const char APN_CATM[21] = "cat-m1.claro.com.br";
+
     const char APNUser[21] = "claro";
     const char APNPassword[21] = "claro";
 
@@ -36,15 +38,23 @@ class states{
     const char MQTTHighFrequencyTopic[31] = "HighFrequency";
     const int MQTTHighPeriod = 500;
 
+    const char MQTTOTATopic[4] = "OTA";
+
     const char MQTTListenTopic[31] = "Are_u_talking_to_me?";
+
+    const char APIKey[40] = "379ea431-b759-4c46-88bc-48b82119d4bd";
+    const char Ver[6] = "1.0.2";
 
     const char HOST[21] = "whistleblower";
 
-    const char AP_SSID_local[21] = "TCU_TCC_Mateus";
-    const char AP_PSW[21] = "tcc_mateus";
+    char AP_SSID_local[21] = "TCU_TCC_Mateus";
+    char AP_PSW[21] = "tcc_mateus";
 
-    const char STA_SSID[21] = "Unicon 2.4_Juliana";
-    const char STA_PSW[21] = "99061012";
+    char STA_SSID[21] = "Unicon 2.4_Juliana";
+    char STA_PSW[21] = "99061012";
+
+    char ALARM_CURRENT_NAME[25] = "Alarms/overcurrent.txt";
+    const int MAX_CURRENT = 90;
 
     const int N_BATERRIES = 0;
 

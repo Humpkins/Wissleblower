@@ -1,19 +1,10 @@
 #include <ESPAsyncWebServer.h>
 #include <ESPmDNS.h>
-#include <AsyncJson.h>
-#include <SPIFFS.h>
 #include <WiFi.h>
-#include "../config.h"
 
-// #define IS_WIFI_AP
+#define IS_WIFI_AP
 
-#ifdef IS_WIFI_AP
-    #define ssid g_states.AP_SSID_local
-    #define password g_states.AP_PSW
-#else
-    #define ssid g_states.STA_SSID
-    #define password g_states.STA_PSW
-
+#ifndef IS_WIFI_AP
     WiFiClient wifiClient;
 #endif
 
@@ -34,16 +25,16 @@ class ESP_Server {
             #ifdef IS_WIFI_AP
             
                 Serial.print("Connecting on Access Point mode");
-                WiFi.mode(WIFI_AP);
-                WiFi.softAP( ssid, password );
+                // WiFi.mode(WIFI_AP);
+                WiFi.softAP( g_states.AP_SSID_local, g_states.AP_PSW );
                 Serial.println("       [OK]");
 
             #else
 
-                printf("SSID: %s PWD: %s \n", ssid, password);
+                printf("SSID: %s PWD: %s \n", g_states.STA_SSID, g_states.STA_PSW);
                 Serial.print("Connecting on Station mode");
                 WiFi.mode(WIFI_STA);
-                WiFi.begin( ssid, password );
+                WiFi.begin( g_states.STA_SSID, g_states.STA_PSW );
                 while( WiFi.status() != WL_CONNECTED ){
                     Serial.print(".");
                     delay(1000);
@@ -76,9 +67,15 @@ class ESP_Server {
                     Serial.println("/info requested...");
                     AsyncResponseStream *response = request -> beginResponseStream("application/json");
 
-                    rootDoc["APN"] = g_states.APN;
+                    rootDoc["APN"] = g_states.APN_GPRS;
                     rootDoc["MQTT_Client_ID"] = g_states.MQTTclientID;
-                    rootDoc["MQTT_Topics"] = g_states.MQTTDataTopic;
+                    rootDoc["MQTT_Host"] = g_states.MQTTHost;
+
+                    rootDoc["MQTT_Low_Period_Freq"] = g_states.MQTTLowPeriod;
+                    rootDoc["MQTT_Medium_Period_Freq"] = g_states.MQTTMediumPeriod;
+                    rootDoc["MQTT_High_Period_Freq"] = g_states.MQTTHighPeriod;
+
+                    rootDoc["Wheel_diameter"] = g_states.DRIVEN_WHEEL_MAX_DIAMETER_M;
 
                     serializeJson( rootDoc, *response );
 

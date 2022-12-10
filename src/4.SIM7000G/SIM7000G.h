@@ -37,9 +37,9 @@ TinyGsm        modem(debugger);
 TinyGsm        modem(SerialAT);
 #endif
 
-TinyGsmClient GSMclient(modem);
+TinyGsmClient GSMclient( modem, 0 );
 
-class SIM7000G{
+class SIM7000G {
 
     public:
 
@@ -73,6 +73,7 @@ class SIM7000G{
             int vSatGNSS = 0;
             int uSatGPS = 0;
             int uSatGLONASS = 0;
+            char datetime[21] = "00/00/00,00:00:00+00";
         };
         // Instantiate the GPS structure
         struct gpsInfo CurrentGPSData;
@@ -87,6 +88,7 @@ class SIM7000G{
             int MCC = 0;
             int MNC = 0;
             char LAC[7] = "";
+            char ICCID[21] = "";
         };
         // Instantiate the GPRS structure
         struct gprsInfo CurrentGPRSData;
@@ -106,13 +108,14 @@ class SIM7000G{
             modem.setBaud(9600);
 
             Serial.print("\nConnecting to APN ");
-            Serial.print(g_states.APN);
+            Serial.print(g_states.APN_GPRS);
 
-            if (modem.gprsConnect(g_states.APN, g_states.APNPassword, g_states.APNPassword))
+            if (modem.gprsConnect(g_states.APN_GPRS, g_states.APNUser, g_states.APNPassword))
                 Serial.println("       [OK]");
             else {
                 Serial.println("       [RECONNECTION FAIL]");
                 Serial.println("[ERROR]    Handdle APN connection RECONNECTION fail");
+                ESP.restart();
                 while(1);
             }
             
@@ -135,10 +138,17 @@ class SIM7000G{
             // If there is no GPRS connection, then try to connect
 
             for ( int attempt = 0; attempt < RECONNECT_ATTEMPT_LIMIT; attempt++ ){
+
                 Serial.print(attempt);
                 Serial.print("    Reconnecting to GPRS");
+
+                //  Restart the modem before reconect on the last attempt
+                if ( attempt == RECONNECT_ATTEMPT_LIMIT - 1 ) {
+                    modem.restart();
+                    vTaskDelay( 1000 / portTICK_PERIOD_MS );
+                }
                 
-                if ( modem.gprsConnect( g_states.APN, g_states.APNPassword, g_states.APNPassword ) ){
+                if ( modem.gprsConnect( g_states.APN_GPRS, g_states.APNUser, g_states.APNPassword ) ){
                     Serial.println("       [OK]");
                     this->turnGPSOn();
                     return;
@@ -146,6 +156,7 @@ class SIM7000G{
             }
 
             Serial.println("[ERROR]    Handdle APN connection fail");
+            ESP.restart();
             while(1);
         }
 
@@ -292,6 +303,8 @@ class SIM7000G{
                     break;
                 }
 
+                modem.getGSMDateTime(DATE_FULL).toCharArray( this->CurrentGPSData.datetime, modem.getGSMDateTime(DATE_FULL).length() + 1 );
+
                 vTaskDelay( 500 / portTICK_PERIOD_MS );
             }
 
@@ -306,6 +319,7 @@ class SIM7000G{
 
             // Update the gprs signal quality
            this-> CurrentGPRSData.signalQlty = modem.getSignalQuality();
+           strcpy( this-> CurrentGPRSData.ICCID, modem.getSimCCID().c_str() );
 
             // Now the chaotic part: Get the Cell tower info.
             // This is messy because TinyGSM lib still doesn't have specific function for this job, so we have to parse our way out of it

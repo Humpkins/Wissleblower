@@ -3,10 +3,12 @@
 
 #include "./config.h"
 
+#include "./0.ESPServer/ESPServer.h"
 #include "./1.MCP2515/MCP2515.h"
 #include "./2.MPU6050/MPU6050.h"
 #include "./4.SIM7000G/SIM7000G.h"
 #include "./3.MQTT/MQTT.h"
+#include "./7.Watchers/overcurrent.h"
 
 #include "./highFrequencyMQTT/highFrequencyMQTT.h"
 #include "./mediumFrequencyMQTT/mediumFrequencyMQTT.h"
@@ -67,6 +69,17 @@ void TaskMediumFreq( void * parameters ){
     }
 }
 
+//  Watch and logs for vehicle state warnings
+void TaskWatchers ( void * parameters ) {
+
+    //  All watchers methods
+    for(;;){
+        WatcherCurrent.watch();
+
+        vTaskDelay( 1000 / portTICK_PERIOD_MS );
+    }
+}
+
 void reconnect () {
 
     //  Check if GPRS connection is close, if it is, re-opens
@@ -120,13 +133,14 @@ void taskLoopClientMQTT ( void * parameters ) {
     char wakeTopic[51];
     sprintf( wakeTopic, "%s/%s", g_states.MQTTclientID, g_states.MQTTWakeTopic );
     TickType_t maintainConnectionUp_Time = xTaskGetTickCount();
+    TickType_t checkForFirmwareUpdate = xTaskGetTickCount();
 
     for(;;){
 
         if ( xSemaphoreTake( xModem, portMAX_DELAY ) == pdTRUE ) {
             mqtt.loop();
 
-            // Prevent from Idle disconnection
+            //  Prevent from Idle disconnection
             if ( xTaskGetTickCount() - maintainConnectionUp_Time > (7500 / portTICK_PERIOD_MS) ){
                 if ( !mqtt.publish( wakeTopic, "I'm up..." ) ) reconnect();
                 maintainConnectionUp_Time = xTaskGetTickCount();
@@ -160,6 +174,8 @@ void setup() {
 
     xModem = xSemaphoreCreateMutex();
     
+    //  Sets up the WiFi class
+    ESPServer.setup();
     //  Sets up the MPU6050 class
     MPU_DATA.setup();
     // Sets up the MCP2515 class
@@ -177,6 +193,8 @@ void setup() {
     sim_7000g.setup();
     // Sets up the MQTT class
     mqtt_com.setup();
+    // Sets up the OTA class
+    OTA.setup();
 
     //  Sendo good morning message
     char topic_Wake[ sizeof(g_states.MQTTclientID) + sizeof(g_states.MQTTWakeTopic) + 2 ];
@@ -187,11 +205,12 @@ void setup() {
 
     xTaskCreatePinnedToCore( TaskMediumFreq, "Medium frequency data task", 4096, NULL, 2, &xMediumFreq, 0 );
     xTaskCreatePinnedToCore( TaskHighFreq, "High frequency data task", 2048, NULL, 2, &xHighFreq, 0 );
+    // xTaskCreatePinnedToCore( TaskWatchers, "Watcher for state warnings", 1024, NULL, 3, NULL, 0 );
 
-    xTaskCreatePinnedToCore( taskSendOverMQTT, "MQTT data task", 4096, NULL, 2, &xMQTTDeliver, 1 );
-    xTaskCreatePinnedToCore( taskLoopClientMQTT, "MQTT client loop", 4096, NULL, 1, NULL, 1 );
+    xTaskCreatePinnedToCore( taskSendOverMQTT, "MQTT data delivery task", 4096, NULL, 2, &xMQTTDeliver, 1 );
+    xTaskCreatePinnedToCore( taskLoopClientMQTT, "MQTT client loop", 9216, NULL, 1, &xMQTTLoop, 1 );
 
-    xTaskCreatePinnedToCore( heartBeat, "Blinks the LED", 1024, NULL, 1, NULL, 0 );
+    xTaskCreatePinnedToCore( heartBeat, "Blinks the LED", 1024, NULL, 1, &xHeartBeat, 0 );
     
 }
 

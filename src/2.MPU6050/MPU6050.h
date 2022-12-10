@@ -54,6 +54,7 @@ class MPU {
             if ( mpu.testConnection() ) Serial.println( F("MPU6050 connection successful") );
             else {
                 Serial.println( F("[ERROR]    Handdle MPU6050 connection failed"));
+                ESP.restart();
                 while(true);
             }
 

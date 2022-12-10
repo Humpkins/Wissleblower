@@ -1,7 +1,7 @@
 #include <Arduino.h>
 #include <ArduinoJson.h>
 
-StaticJsonDocument<256> medium_freq_root;
+StaticJsonDocument<384> medium_freq_root;
 
 class mediumFrequencyMQTT {
 
@@ -11,22 +11,24 @@ class mediumFrequencyMQTT {
         bool sendMediumFrequencyDataOverMQTT(){
 
             // Pack GPS data in JSON
-            medium_freq_root["Latitude"] =          sim_7000g.CurrentGPSData.latitude;
-            medium_freq_root["Longitude"] =         sim_7000g.CurrentGPSData.longitude;
-            medium_freq_root["GPS_Speed"] =         sim_7000g.CurrentGPSData.speed;
-            medium_freq_root["Altitude"] =          sim_7000g.CurrentGPSData.altitude;
-            medium_freq_root["Orientation"] =          sim_7000g.CurrentGPSData.orientation;
-            medium_freq_root["SatelitesInViewGNSS"] =   sim_7000g.CurrentGPSData.vSatGNSS;
-            medium_freq_root["SatelitesInUseGPS"] =    sim_7000g.CurrentGPSData.uSatGPS;
-            medium_freq_root["SatelitesInUseGLONASS"] =    sim_7000g.CurrentGPSData.uSatGLONASS;
+            medium_freq_root["Latitude"] =                  sim_7000g.CurrentGPSData.latitude;
+            medium_freq_root["Longitude"] =                 sim_7000g.CurrentGPSData.longitude;
+            medium_freq_root["GPS_Speed"] =                 sim_7000g.CurrentGPSData.speed;
+            medium_freq_root["Altitude"] =                  sim_7000g.CurrentGPSData.altitude;
+            medium_freq_root["Orientation"] =               sim_7000g.CurrentGPSData.orientation;
+            medium_freq_root["SatelitesInViewGNSS"] =       sim_7000g.CurrentGPSData.vSatGNSS;
+            medium_freq_root["SatelitesInUseGPS"] =         sim_7000g.CurrentGPSData.uSatGPS;
+            medium_freq_root["SatelitesInUseGLONASS"] =     sim_7000g.CurrentGPSData.uSatGLONASS;
 
             // Pack GPRS data in JSON
-            medium_freq_root["GPRS_SingalQuality"] =      sim_7000g.CurrentGPRSData.signalQlty;
-            medium_freq_root["GPRS_Operational_Mode"] =   sim_7000g.CurrentGPRSData.operationalMode;
-            medium_freq_root["cellID"] =                  sim_7000g.CurrentGPRSData.cellID;
-            medium_freq_root["MCC"] =                     sim_7000g.CurrentGPRSData.MCC;
-            medium_freq_root["MNC"] =                     sim_7000g.CurrentGPRSData.MNC;
-            medium_freq_root["LAC"] =                     sim_7000g.CurrentGPRSData.LAC;
+            medium_freq_root["GPRS_SingalQuality"] =        sim_7000g.CurrentGPRSData.signalQlty;
+            medium_freq_root["GPRS_Operational_Mode"] =     sim_7000g.CurrentGPRSData.operationalMode;
+            medium_freq_root["cellID"] =                    sim_7000g.CurrentGPRSData.cellID;
+            medium_freq_root["MCC"] =                       sim_7000g.CurrentGPRSData.MCC;
+            medium_freq_root["MNC"] =                       sim_7000g.CurrentGPRSData.MNC;
+            medium_freq_root["LAC"] =                       sim_7000g.CurrentGPRSData.LAC;
+            medium_freq_root["Firmware_Ver"] =              g_states.Ver;
+            medium_freq_root["ICCID"] =                     sim_7000g.CurrentGPRSData.ICCID;
 
             // Serialize JSON Object to array of string
             char MediumFrequencyDataBuffer[measureJson(medium_freq_root) + 1];

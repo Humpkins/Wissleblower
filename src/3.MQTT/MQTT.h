@@ -1,4 +1,7 @@
 #include <PubSubClient.h>
+PubSubClient mqtt(GSMclient);
+
+#include "../6.OTA/OTA.h"
 
 #ifndef TINY_GSM_MODEM_SIM7000
     #include "../4.SIM7000G/SIM7000G.h"
@@ -10,8 +13,6 @@
 
 #define TIME_BETWEEN_RECONNECTS_ATTEMPTS 1000
 #define RECONNECT_THREAD_TIME 10000
-
-PubSubClient mqtt(GSMclient);
 
 //  Callback function
 void someoneIsListenToUs(  char * topic, byte * payload, unsigned int length ) {
@@ -51,6 +52,10 @@ void someoneIsListenToUs(  char * topic, byte * payload, unsigned int length ) {
         } else if ( strcmp( incommingPayload, "resetUrSelf" ) == 0 ) {
             mqtt.publish( topic_Wake, "Yes master! restarting the system. I'll be back in 1 minute" );
             ESP.restart();
+        } else if ( strcmp( incommingPayload, "updateUrSelf" ) == 0 ) {
+            mqtt.publish( topic_Wake, "Yes master! Starting FOTA sequence" );
+
+            OTA.loop();
         }
     }
 
@@ -72,14 +77,15 @@ class MQTT {
             Serial.print(g_states.MQTTclientID);
 
             // Connect to MQTT Broker without username and password
-            bool status = mqtt.connect( g_states.MQTTclientID );
-            mqtt.setBufferSize(450);
+            mqtt.setBufferSize(1024);
+            bool status = mqtt.connect( g_states.MQTTclientID, "Humpkinz", "BrokerPrivadoTCCTCU" );
 
             // Or, if you want to authenticate MQTT:
             //   bool status = mqtt.connect("GsmClientN", mqttUsername, mqttPassword);
             if ( !mqtt.connect( g_states.MQTTclientID ) ){
                 Serial.println("       [FAIL]");
                 Serial.println("[ERROR]    Handdle Broker connection fail");
+                ESP.restart();
                 while(1);
             } else {
                 Serial.println("       [OK]");
@@ -104,7 +110,7 @@ class MQTT {
                 Serial.print(attempt);
                 Serial.print("  Reconecting to MQTT broker");
 
-                if ( mqtt.connect( g_states.MQTTclientID ) ){
+                if ( mqtt.connect( g_states.MQTTclientID, "Humpkinz", "BrokerPrivadoTCCTCU" ) ){
                     Serial.println("       [OK]");
                     
                     mqtt.setCallback( someoneIsListenToUs );
@@ -122,6 +128,7 @@ class MQTT {
             }
 
             Serial.println("[ERROR]    Handdle Broker re-connection fail");
+            ESP.restart();
             while(1);
         }
 

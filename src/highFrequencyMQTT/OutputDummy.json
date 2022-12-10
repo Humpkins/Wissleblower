@@ -1,6 +1,22 @@
 {
-    "BMS1_Current": 99,
-    "BMS2_Current": 99,
-    "Motor_Speed_RPM": 9999,
-    "Motor_Torque_Nm": 9999
+    "Yaw": 1.007187366,
+    "Pitch": -0.04091889,
+    "Roll": -0.119266815,
+    "Acell_x": 2,
+    "Acell_y": -3,
+    "Acell_z": -7,
+    "BMS1_Current": 57,
+    "BMS1_Voltage": 32,
+    "BMS1_SoC": 15,
+    "BMS1_SoH": 97,
+    "BMS1_Temperature": 55,
+    "BMS2_Current": 58,
+    "BMS2_Voltage": 83,
+    "BMS2_SoC": 85,
+    "BMS2_SoH": 97,
+    "BMS2_Temperature": 57,
+    "Motor_Speed_RPM": 1200,
+    "Motor_Torque_Nm": 124,
+    "Motor_Temperature_C": 65,
+    "Controller_Temperature_C": 75
 }
