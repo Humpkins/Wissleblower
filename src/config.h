@@ -1,6 +1,6 @@
 #include <Arduino.h>
 
-#include <FS.h>
+#define FS_NO_GLOBALS
 #include <SPIFFS.h>
 #include <ArduinoJson.h>
 #include <stdio.h>
@@ -21,7 +21,7 @@ class states{
     const char MQTTHost[31] = "broker.hivemq.com";//"test.mosquitto.org";
     const int  MQTTPort = 1883;
     const char MQTTclientID[21] = "MotoTesteTCC";
-    const char MQTTUsername[5] = "";
+    const char MQTTUsername[15] = "";
     const char MQTTPassword[5] = "";
     const char MQTTInfoTopic[5] = "Info";
     const char MQTTDataTopic[14] = "potenciometro";
@@ -42,7 +42,6 @@ class states{
 
     const char MQTTListenTopic[31] = "Are_u_talking_to_me?";
 
-    const char APIKey[40] = "379ea431-b759-4c46-88bc-48b82119d4bd";
     const char Ver[6] = "1.0.2";
 
     const char HOST[21] = "whistleblower";
@@ -53,7 +52,7 @@ class states{
     char STA_SSID[21] = "Unicon 2.4_Juliana";
     char STA_PSW[21] = "99061012";
 
-    char ALARM_CURRENT_NAME[25] = "Alarms/overcurrent.txt";
+    char ALARM_CURRENT_NAME[25] = "overcurrent.txt";
     const int MAX_CURRENT = 90;
 
     const int N_BATERRIES = 0;
@@ -67,38 +66,38 @@ class states{
     // Metodos para atualizar os dados
     void atualizaAPN(){};
 
-    void showConfigJson(){
+    // void showConfigJson(){
 
-      if ( !SPIFFS.begin() ) {
-        Serial.println("[ERROR]    Handdle SPIFFS mount error");
-        while(true);
-      }
+    //   if ( !SPIFFS.begin() ) {
+    //     Serial.println("[ERROR]    Handdle SPIFFS mount error");
+    //     while(true);
+    //   }
 
-      File config = SPIFFS.open(F("/config.json"));
+    //   File config = SPIFFS.open(F("/config.json"));
 
-      if ( config && config.size() ){
+    //   if ( config && config.size() ){
 
-        DeserializationError err = deserializeJson( puff, config );
-        if ( err ) {
-          Serial.println("Deserialization error");
-          Serial.println(err.f_str());
-          while(true);
-        }
+    //     DeserializationError err = deserializeJson( puff, config );
+    //     if ( err ) {
+    //       Serial.println("Deserialization error");
+    //       Serial.println(err.f_str());
+    //       while(true);
+    //     }
 
-        // int dados;
-        // dados = puff["MQTTPort"];
+    //     // int dados;
+    //     // dados = puff["MQTTPort"];
 
-        const char* dados = puff["APN"];
-        // strlcpy(dados, puff["APN"], sizeof(dados));
-        Serial.println(dados);
+    //     const char* dados = puff["APN"];
+    //     // strlcpy(dados, puff["APN"], sizeof(dados));
+    //     Serial.println(dados);
 
-        while(true);
+    //     while(true);
 
-      } else {
-        Serial.println("Erro ao ler os dados");
-      }
+    //   } else {
+    //     Serial.println("Erro ao ler os dados");
+    //   }
 
-    }
+    // }
 };
 
 states g_states;

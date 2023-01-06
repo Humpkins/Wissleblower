@@ -94,7 +94,7 @@ class MCP2515 {
                     if ( this->IDs_Data.ID == g_states.BASE_BATTERY_ID && !already_checked[0] ){
 
                         // Read the BMS1 Data and save it to the gloabl state
-                        this->batteries[0]. current       = (this->IDs_Data.Content_Arr[2] * (int)pow(16, 2) + this->IDs_Data.Content_Arr[3]) * 0.1;
+                        this->batteries[0].current        = (this->IDs_Data.Content_Arr[2] * (int)pow(16, 2) + this->IDs_Data.Content_Arr[3]) * 0.1;
                         this->batteries[0].voltage        = (this->IDs_Data.Content_Arr[0] * (int)pow(16, 2) + this->IDs_Data.Content_Arr[1]) * 0.1; // deslocamento para a esqueda
                         this->batteries[0].SoC            = this->IDs_Data.Content_Arr[6];
                         this->batteries[0].SoH            = this->IDs_Data.Content_Arr[7];

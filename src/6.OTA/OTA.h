@@ -11,15 +11,15 @@ class otaClass {
 
     public:
         void setup(){
-            OTADRIVE.setInfo( g_states.APIKey, g_states.Ver );
+            OTADRIVE.setInfo( APIKey, g_states.Ver );
             OTADRIVE.onUpdateFirmwareProgress(update_prgs);
         }
 
         void loop() {
             //  Suspend all tasks but the current
-            vTaskSuspend(xMediumFreq);
-            vTaskSuspend(xHighFreq);
-            vTaskSuspend(xHeartBeat);
+            vTaskSuspend( xMediumFreq );
+            vTaskSuspend( xHighFreq );
+            vTaskSuspend( xHeartBeat );
 
             char topicOTA[ sizeof(g_states.MQTTclientID) + sizeof(g_states.MQTTOTATopic) + 2 ];
             sprintf( topicOTA, "%s/%s", g_states.MQTTclientID, g_states.MQTTOTATopic );
@@ -39,13 +39,13 @@ class otaClass {
                 char response[] = "Firmware update complete. Rebooting system. I'll be back in 1 minute";
                 Serial.println(response);
                 mqtt.publish(ListenTopic, response);
-                ESP.restart();
+                utilities.ESPReset();
             } else {
                 Serial.println(OTAStatus.toString().c_str());
                 mqtt.publish(ListenTopic, OTAStatus.toString().c_str());
             }
 
-            vTaskResume(xHeartBeat);
+            vTaskResume( xHeartBeat );
         }
             
 };

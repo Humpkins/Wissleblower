@@ -3,7 +3,7 @@
 // #define TINY_GSM_RX_BUFFER   1024  // Set RX buffer to 1Kb
 
 #ifndef RECONNECT_ATTEMPT_LIMIT
-    #define RECONNECT_ATTEMPT_LIMIT 3
+    #define RECONNECT_ATTEMPT_LIMIT 2
 #endif
 
 // Caso eu queria debugar os comandos AT mandados para o SIM800L
@@ -11,9 +11,9 @@
 // #define SerialMon Serial
 
 #include <TinyGsmClient.h>
-#include <ArduinoJson.h>
-#include <soc/rtc_wdt.h>
-#include "../5.Utils/utils.h"
+#include <time.h>
+// #include <ArduinoJson.h>
+// #include <soc/rtc_wdt.h>
 
 #ifndef CONFIG_DATA
     #include "../config.h"
@@ -73,7 +73,8 @@ class SIM7000G {
             int vSatGNSS = 0;
             int uSatGPS = 0;
             int uSatGLONASS = 0;
-            char datetime[21] = "00/00/00,00:00:00+00";
+            char datetime[64] = "00_00_0000 00-00-00";
+            int timezone = 0;
         };
         // Instantiate the GPS structure
         struct gpsInfo CurrentGPSData;
@@ -115,8 +116,7 @@ class SIM7000G {
             else {
                 Serial.println("       [RECONNECTION FAIL]");
                 Serial.println("[ERROR]    Handdle APN connection RECONNECTION fail");
-                ESP.restart();
-                while(1);
+                utilities.ESPReset();
             }
             
             if ( !modem.isGprsConnected() ){
@@ -127,10 +127,53 @@ class SIM7000G {
                 } else {
                     Serial.println("       [RECONNECTION FAIL]");
                     Serial.println("Handlle GPRS connection RECONNECTION fail");
-                    while(1);
+                    utilities.ESPReset();
                 }
             }
 
+            Serial.print("Seting up the RTC");
+            if ( this->setupDateTime() ) {
+                Serial.println("        [OK]");
+                Serial.printf( "Current datetime: %s\n", this->CurrentGPSData.datetime );
+            } else {
+                Serial.println("        [ERROR]");
+                Serial.println("Handle RTC setup error");
+                utilities.ESPReset();
+            }
+
+        }
+
+        bool checkConnection(){
+
+            int tryout = 5;
+            for ( int i = 0; i < tryout; i++ ) {
+
+                SerialAT.print("AT+CGATT?\r\n");
+                vTaskDelay( 500 / portTICK_PERIOD_MS );
+
+                // Read the AT command's response
+                char response[10];  // Buffer for the AT command's response
+                char midBuff = '\n';
+                int position = 0;   // position in array inside the loop 
+                while ( SerialAT.available() ){
+                    midBuff = SerialAT.read();
+
+                    //  read until the linebreak
+                    if ( midBuff == '\n' ) break;
+
+                    response[position] = midBuff;
+                    position++;
+                    if ( position > 9 ) break;
+                }
+                response[position] = '\0';
+                //  Clear Serial buffer
+                Serial.flush();
+
+                //  If the response is like expected, return true
+                if ( strstr( response, "+CGATT: 1" ) == NULL ) return true;
+            }
+            //  If tryout limit is reached, return false
+            return false;
         }
 
         // Function to reconect to GPRS if it is disconnected
@@ -156,7 +199,7 @@ class SIM7000G {
             }
 
             Serial.println("[ERROR]    Handdle APN connection fail");
-            ESP.restart();
+            utilities.ESPReset();
             while(1);
         }
 
@@ -195,7 +238,8 @@ class SIM7000G {
                     }
                 }
                 response[position] = '\0';
-                // Serial.println(response);
+                //  Clear Serial buffer
+                Serial.flush();
 
                 if ( strstr( response, "+CGNSINF: 1,1" ) == NULL ) continue;
                 else {
@@ -303,9 +347,6 @@ class SIM7000G {
                     break;
                 }
 
-                modem.getGSMDateTime(DATE_FULL).toCharArray( this->CurrentGPSData.datetime, modem.getGSMDateTime(DATE_FULL).length() + 1 );
-
-                vTaskDelay( 500 / portTICK_PERIOD_MS );
             }
 
             //  If could not lock GPS data in <tryOut> times, return false
@@ -342,6 +383,8 @@ class SIM7000G {
                     position++;
                 }
                 response[position] = '\0';
+                //  Clear Serial buffer
+                Serial.flush();
 
                 if ( strstr( response, "+CPSI: GSM,Online," ) == NULL ) continue;
                 else {
@@ -422,6 +465,74 @@ class SIM7000G {
             return false;
         }
 
+        //  Sets up the microcontroller's RTC
+        bool setupDateTime(){
+            // modem.getGSMDateTime(DATE_FULL).toCharArray( this->CurrentGPSData.datetime, modem.getGSMDateTime(DATE_FULL).length() + 1 );
+
+            struct tm Timestamp;
+            int hh, mm, ss, yy, mon, day = 0;
+
+            int tryout = 5;
+            Serial.println("Antes do for");
+            for ( int tries = 0; tries < tryout; tries++ ) {
+
+                SerialAT.write("AT+CCLK?\r\n");
+                vTaskDelay( 200 / portTICK_PERIOD_MS );
+
+                char response[64];
+                int position = 0;
+                Serial.println("Antes do while");
+                while ( SerialAT.available() ) {
+                    response[position] = SerialAT.read();
+                    position++;
+                }
+                Serial.printf("Antes do while %i\n", position);
+                response[position] = '\0';
+
+                if ( strstr( response, "+CCLK: " ) == NULL ) continue;
+                else {
+                    struct tm Timestamp;
+                    Serial.println("Antes do sscanf");
+                    sscanf( response, "\n+CCLK: \"%d/%d/%d,%d:%d:%d%d\"\nOK\n", &yy, &mon, &day, &hh, &mm, &ss, &this->CurrentGPSData.timezone );
+
+                    Timestamp.tm_hour = hh;
+                    Timestamp.tm_min = mm;
+                    Timestamp.tm_sec = ss;
+                    Timestamp.tm_year = 2000 + yy - 1900;
+
+                    Timestamp.tm_mon = mon - 1;
+                    Timestamp.tm_mday = day;
+                    Timestamp.tm_isdst = -1;
+
+                    time_t epoch = mktime( &Timestamp );
+
+                    struct timeval tv;
+                    tv.tv_sec = epoch + 1;
+                    tv.tv_usec = 0;
+                    settimeofday( &tv, NULL );
+
+                    if ( epoch > 0 ) {
+                        Serial.println("Antes do update");
+                        this->updateDateTime();
+                        return true;
+                    }
+                }
+            }
+
+            return false;
+        }
+
+        void updateDateTime(){
+
+            time_t tt = time(NULL);
+            time_t tt_with_offset = tt + ( 3600 * (this->CurrentGPSData.timezone/2) );
+
+            struct tm Timestamp;
+
+            Timestamp = *gmtime(&tt_with_offset);
+
+            strftime(this->CurrentGPSData.datetime, 64, "%d/%m/%Y %H:%M:%S", &Timestamp);
+        }
 };
 
 SIM7000G sim_7000g;

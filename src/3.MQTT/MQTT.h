@@ -29,33 +29,87 @@ void someoneIsListenToUs(  char * topic, byte * payload, unsigned int length ) {
 
         if ( strcmp( incommingPayload, "getUp!" ) == 0 ) {
 
-            mqtt.publish( topic_Wake, "Yes master! Resuming the message system" );
+            // mqtt.publish( topic_Wake, "Yes master! Resuming the message system" );
 
-            vTaskResume( xHighFreq );
+            // Resume the high frequency task
+            toggleHighFreq( true );
 
-            sim_7000g.turnGPSOn();
-            vTaskResume( xMediumFreq );
+            //  Resume the medium frequency task
+            toggleMediumFreq( true );
 
-            vTaskResume( xMQTTDeliver );
+            //  Resume the MQTT delivery task
+            toggleMQTTFreq( true );
 
         } else if ( strcmp( incommingPayload, "goSleep" ) == 0 ) {
 
-            mqtt.publish( topic_Wake, "Yes master! Suspending the message system" );
+            // mqtt.publish( topic_Wake, "Yes master! Suspending the message system" );
+            Serial.println("Suspending the message system");
 
-            vTaskSuspend( xHighFreq );
+            // Suspend the high frequency task
+            toggleHighFreq( false );
 
-            vTaskSuspend( xMediumFreq );
-            sim_7000g.turnGPSOff();
+            //  Suspend the medium frequency task
+            toggleMediumFreq( false );
 
-            vTaskSuspend( xMQTTDeliver );
+            //  Suspend the MQTT delivery task
+            toggleMQTTFreq( false );
 
         } else if ( strcmp( incommingPayload, "resetUrSelf" ) == 0 ) {
-            mqtt.publish( topic_Wake, "Yes master! restarting the system. I'll be back in 1 minute" );
-            ESP.restart();
+            
+            // mqtt.publish( topic_Wake, "Yes master! restarting the system. I'll be back in 1 minute" );
+            Serial.println("Restarting the system. I'll be back in 1 minute");
+
+            vTaskDelay( 1000 / portTICK_PERIOD_MS );
+
+            utilities.ESPReset();
+
         } else if ( strcmp( incommingPayload, "updateUrSelf" ) == 0 ) {
-            mqtt.publish( topic_Wake, "Yes master! Starting FOTA sequence" );
+
+            // mqtt.publish( topic_Wake, "Yes master! Starting FOTA sequence" );
+            Serial.println("Starting FOTA sequence");
 
             OTA.loop();
+
+        } else if ( strcmp( incommingPayload, "startRecording" ) == 0 ) {
+
+            if ( !logger.recording ) {
+                int recordingStatus = logger.startLog();
+
+                //  Resume the logger service
+                switch ( recordingStatus ){
+                    case 0:
+                        mqtt.publish( topic_Wake, "Error on start recording" );
+                        Serial.println("SD mounting error");
+                        break;
+
+                    case 1:
+                        mqtt.publish( topic_Wake, "Yes master! Starting to record data" );
+                        Serial.println("Starting to record data");
+                        break;
+
+                    case 2:
+                        mqtt.publish( topic_Wake, "Master, recording service is already running" );
+                        Serial.println("Starting to record data");
+                        break;
+                    
+                    default:
+                        mqtt.publish( topic_Wake, "Error on start recording" );
+                        Serial.println("SD mounting error");
+                        break;
+                }
+            }
+
+        } else if ( strcmp( incommingPayload, "stopRecording" ) == 0 ) {
+
+            if ( logger.recording ) {
+
+                // mqtt.publish( topic_Wake, "Yes master! Suspending recording service" );
+                Serial.println("Suspending recording service");
+                
+                //  Suspend the logger service
+                logger.stopLog();
+
+            }
         }
     }
 
@@ -74,18 +128,20 @@ class MQTT {
             Serial.print("Connecting to MQTT Host ");
             Serial.print(g_states.MQTTHost);
             Serial.print(" with the following client ID ");
-            Serial.print(g_states.MQTTclientID);
+            Serial.printf("%s%llX", g_states.MQTTclientID, ESP.getEfuseMac());
+            char MQTTclientID[25];
+            sprintf(MQTTclientID, "%s%llX", g_states.MQTTclientID, ESP.getEfuseMac());
 
             // Connect to MQTT Broker without username and password
             mqtt.setBufferSize(1024);
-            bool status = mqtt.connect( g_states.MQTTclientID, "Humpkinz", "BrokerPrivadoTCCTCU" );
+            bool status = mqtt.connect( MQTTclientID );
 
             // Or, if you want to authenticate MQTT:
             //   bool status = mqtt.connect("GsmClientN", mqttUsername, mqttPassword);
-            if ( !mqtt.connect( g_states.MQTTclientID ) ){
+            if ( !mqtt.connect( g_states.MQTTclientID, g_states.MQTTUsername, g_states.MQTTPassword ) ){
                 Serial.println("       [FAIL]");
                 Serial.println("[ERROR]    Handdle Broker connection fail");
-                ESP.restart();
+                utilities.ESPReset();
                 while(1);
             } else {
                 Serial.println("       [OK]");
@@ -110,7 +166,10 @@ class MQTT {
                 Serial.print(attempt);
                 Serial.print("  Reconecting to MQTT broker");
 
-                if ( mqtt.connect( g_states.MQTTclientID, "Humpkinz", "BrokerPrivadoTCCTCU" ) ){
+                char MQTTclientID[25];
+                sprintf(MQTTclientID, "%s%llX", g_states.MQTTclientID, ESP.getEfuseMac());
+
+                if ( mqtt.connect( g_states.MQTTclientID, g_states.MQTTUsername, g_states.MQTTPassword ) ){
                     Serial.println("       [OK]");
                     
                     mqtt.setCallback( someoneIsListenToUs );
@@ -128,7 +187,7 @@ class MQTT {
             }
 
             Serial.println("[ERROR]    Handdle Broker re-connection fail");
-            ESP.restart();
+            utilities.ESPReset();
             while(1);
         }
 

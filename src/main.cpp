@@ -1,23 +1,30 @@
 #include <Arduino.h>
 #include <main.h>
+#include "secrets.h"
 
 #include "./config.h"
+#include "./5.Utils/utils.h"
 
 #include "./0.ESPServer/ESPServer.h"
-#include "./1.MCP2515/MCP2515.h"
 #include "./2.MPU6050/MPU6050.h"
+#include "./8.TJA1050/TJA1050.h"
 #include "./4.SIM7000G/SIM7000G.h"
+#include "./9.LOGGER/logger.h"
 #include "./3.MQTT/MQTT.h"
 #include "./7.Watchers/overcurrent.h"
 
 #include "./highFrequencyMQTT/highFrequencyMQTT.h"
 #include "./mediumFrequencyMQTT/mediumFrequencyMQTT.h"
 
-#define MCP_INT_PIN 13
-#define MPU_INT_PIN 36
-#define LED_PIN 12
+#define LED_PIN     GPIO_NUM_12
 
 #define TASK_QTY 2
+
+//  Toggle the high frequency task state
+void toggleHighFreq( bool state ) {
+    if ( state ) vTaskResume( xHighFreq );
+    else vTaskSuspend( xHighFreq );
+}
 
 //  Sends the high frequency data over mqtt
 void TaskHighFreq( void * parameters ){
@@ -27,15 +34,24 @@ void TaskHighFreq( void * parameters ){
     static TickType_t xDelay = g_states.MQTTHighPeriod / portTICK_PERIOD_MS;
 
     for (;;) {
-        // Serial.print("Getting MCP data");
-        if ( !MCP_DATA.UpdateSamples() ) Serial.println("       [MCP ERROR]  Handdle MCP packet loss");
-        // else Serial.println("       [MCP OK]");
+        // Serial.print("Getting TJA data");
+        if ( !TJA_DATA.UpdateSamples() ) Serial.println("       [TJA ERROR]  Handdle TJA packet loss");
 
         // Serial.print("Getting MPU data");
-        if ( !MPU_DATA.UpdateSamples() ) Serial.println("       [MCP ERROR]  Handdle MPU sampling error");
-        // else Serial.println("       [MPU OK]");
+        if ( !MPU_DATA.UpdateSamples() ) Serial.println("       [TJA ERROR]  Handdle MPU sampling error");
 
         vTaskDelay( xDelay );
+    }
+}
+
+//  Toggle the medium frequency task state
+void toggleMediumFreq( bool state ) {
+    if ( state ) {
+        sim_7000g.turnGPSOn();
+        vTaskResume( xMediumFreq );
+    } else {
+        vTaskSuspend( xMediumFreq );
+        sim_7000g.turnGPSOff();
     }
 }
 
@@ -69,27 +85,31 @@ void TaskMediumFreq( void * parameters ){
     }
 }
 
-//  Watch and logs for vehicle state warnings
-void TaskWatchers ( void * parameters ) {
-
-    //  All watchers methods
-    for(;;){
-        WatcherCurrent.watch();
-
-        vTaskDelay( 1000 / portTICK_PERIOD_MS );
-    }
-}
-
 void reconnect () {
 
     //  Check if GPRS connection is close, if it is, re-opens
-    if ( !modem.isGprsConnected() ) sim_7000g.maintainGPRSconnection();
-
+    // if ( !modem.isGprsConnected() ) sim_7000g.maintainGPRSconnection();
+    Serial.print("GPRS connection");
+    if ( !sim_7000g.checkConnection() ) {
+        Serial.println("        [FALSE]");
+        sim_7000g.maintainGPRSconnection();
+    } else Serial.println("        [OK]");
+    
     //  Check if MQTT connection is close, if it is, re-opens
-    if ( !mqtt.connected() ) mqtt_com.maintainMQTTConnection();
+    Serial.print("MQTT connection");
+    if ( !mqtt.connected() ) {
+        Serial.println("        [FALSE]");
+        mqtt_com.maintainMQTTConnection();
+    } else Serial.println("        [OK]");
 
 }
 
+//  Toggle the MQTT delivery task state
+void toggleMQTTFreq( bool state ) {
+    ( state )?vTaskResume( xMQTTDeliver ):vTaskSuspend( xMQTTDeliver );
+}
+
+// Task that sends data over MQTT
 void taskSendOverMQTT ( void * parameters ){
     //  Suspend itself and wait to be awaken
     vTaskSuspend(NULL);
@@ -129,11 +149,58 @@ void taskSendOverMQTT ( void * parameters ){
     }
 }
 
+//  Watch and logs for vehicle state warnings
+void TaskWatchers ( void * parameters ) {
+
+    //  All watchers methods
+    for(;;){
+        if ( !WatcherCurrent.isSetedUp ){
+            // Sets up the watchers class
+            if ( xSemaphoreTake( xSD, portMAX_DELAY ) == pdTRUE) {
+                WatcherCurrent.setup();
+                WatcherCurrent.isSetedUp = 1;
+                xSemaphoreGive(xSD);
+            }
+        } else {
+            if ( xSemaphoreTake( xSD, portMAX_DELAY ) == pdTRUE ){
+                WatcherCurrent.current();
+                xSemaphoreGive(xSD);
+            }
+        }
+        vTaskDelay( 3000 / portTICK_PERIOD_MS );
+    }
+}
+
+//  Task that Logs the data
+void TasklogData ( void * parameters ) {
+    // Suspend itself and wait to be awaken
+    vTaskSuspend( NULL );
+
+    for (;;) {
+        if ( xSemaphoreTake( xSD, portMAX_DELAY ) == pdTRUE ) {
+            logger.updateFile();
+            xSemaphoreGive(xSD);
+        }
+        vTaskDelay( 1000 / portTICK_PERIOD_MS );
+    }
+}
+
+//  Task that update board timestamp
+void taskUpdateTimesTamp( void * parameters ){
+    for (;;){
+        if ( xSemaphoreTake( xModem, portMAX_DELAY ) == pdTRUE ) {
+            sim_7000g.updateDateTime();
+            xSemaphoreGive( xModem );
+        }
+        vTaskDelay( (750) / portTICK_PERIOD_MS );
+    }
+}
+
 void taskLoopClientMQTT ( void * parameters ) {
     char wakeTopic[51];
     sprintf( wakeTopic, "%s/%s", g_states.MQTTclientID, g_states.MQTTWakeTopic );
     TickType_t maintainConnectionUp_Time = xTaskGetTickCount();
-    TickType_t checkForFirmwareUpdate = xTaskGetTickCount();
+    TickType_t updateTimestamp = xTaskGetTickCount();
 
     for(;;){
 
@@ -172,16 +239,18 @@ void setup() {
     
     pinMode(LED_PIN, OUTPUT);
 
-    xModem = xSemaphoreCreateMutex();
-    
-    //  Sets up the WiFi class
-    ESPServer.setup();
     //  Sets up the MPU6050 class
     MPU_DATA.setup();
-    // Sets up the MCP2515 class
-    MCP_DATA.setup();
+    //  Sets up the TJA1050 class
+    TJA_DATA.setup();
+    //  Sets up the SD class
+    logger.setup();
+
+    xModem = xSemaphoreCreateMutex();
+    xSD = xSemaphoreCreateMutex();
 
     Serial.begin(115200);
+
 
     // Prints the current CPU frequency
     uint32_t freq = getCpuFrequencyMhz();
@@ -191,6 +260,7 @@ void setup() {
 
     // Sets up the SIM7000G GPRS class
     sim_7000g.setup();
+
     // Sets up the MQTT class
     mqtt_com.setup();
     // Sets up the OTA class
@@ -205,11 +275,13 @@ void setup() {
 
     xTaskCreatePinnedToCore( TaskMediumFreq, "Medium frequency data task", 4096, NULL, 2, &xMediumFreq, 0 );
     xTaskCreatePinnedToCore( TaskHighFreq, "High frequency data task", 2048, NULL, 2, &xHighFreq, 0 );
-    // xTaskCreatePinnedToCore( TaskWatchers, "Watcher for state warnings", 1024, NULL, 3, NULL, 0 );
+    // xTaskCreatePinnedToCore( TaskWatchers, "Watcher for state warnings", 2048, NULL, 3, NULL, 0 );
+    xTaskCreatePinnedToCore( TasklogData, "Logs data to SD card", 3072, NULL, 3, &xLog, 0 );
 
     xTaskCreatePinnedToCore( taskSendOverMQTT, "MQTT data delivery task", 4096, NULL, 2, &xMQTTDeliver, 1 );
     xTaskCreatePinnedToCore( taskLoopClientMQTT, "MQTT client loop", 9216, NULL, 1, &xMQTTLoop, 1 );
 
+    xTaskCreatePinnedToCore( taskUpdateTimesTamp, "Update board's Timestamp", 2048, NULL, 4, NULL, 0 );
     xTaskCreatePinnedToCore( heartBeat, "Blinks the LED", 1024, NULL, 1, &xHeartBeat, 0 );
     
 }

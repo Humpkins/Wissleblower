@@ -18,23 +18,25 @@ class highFrequencyMQTT {
             high_freq_root["Acell_z"] = MPU_DATA.MPUData.aaWorld.z;
 
             // Pack Battery data in JSON
-            high_freq_root["BMS1_Current"] = MCP_DATA.batteries[0].current;
-            high_freq_root["BMS1_Voltage"] = MCP_DATA.batteries[0].voltage;
-            high_freq_root["BMS1_SoC"] = MCP_DATA.batteries[0].SoC;
-            high_freq_root["BMS1_SoH"] = MCP_DATA.batteries[0].SoH;
-            high_freq_root["BMS1_Temperature"] = MCP_DATA.batteries[0].temperature;
+            high_freq_root["BMS1_Current"] = TJA_DATA.batteries[0].current;
+            high_freq_root["BMS1_Voltage"] = TJA_DATA.batteries[0].voltage;
+            high_freq_root["BMS1_SoC"] = TJA_DATA.batteries[0].SoC;
+            high_freq_root["BMS1_SoH"] = TJA_DATA.batteries[0].SoH;
+            high_freq_root["BMS1_Temperature"] = TJA_DATA.batteries[0].temperature;
 
-            high_freq_root["BMS2_Current"] = MCP_DATA.batteries[1].current;
-            high_freq_root["BMS2_Voltage"] = MCP_DATA.batteries[1].voltage;
-            high_freq_root["BMS2_SoC"] = MCP_DATA.batteries[1].SoC;
-            high_freq_root["BMS2_SoH"] = MCP_DATA.batteries[0].SoH;
-            high_freq_root["BMS2_Temperature"] = MCP_DATA.batteries[1].temperature;
+            high_freq_root["BMS2_Current"] = TJA_DATA.batteries[1].current;
+            high_freq_root["BMS2_Voltage"] = TJA_DATA.batteries[1].voltage;
+            high_freq_root["BMS2_SoC"] = TJA_DATA.batteries[1].SoC;
+            high_freq_root["BMS2_SoH"] = TJA_DATA.batteries[1].SoH;
+            high_freq_root["BMS2_Temperature"] = TJA_DATA.batteries[1].temperature;
 
             // Pack powertrain data in JSON
-            high_freq_root["Motor_Speed_RPM"] =    MCP_DATA.CurrentPowertrainData.motorSpeedRPM;
-            high_freq_root["Motor_Torque_Nm"] =    MCP_DATA.CurrentPowertrainData.motorTorque;
-            high_freq_root["Motor_Temperature_C"] =    MCP_DATA.CurrentPowertrainData.motorTemperature;
-            high_freq_root["Controller_Temperature_C"] =    MCP_DATA.CurrentPowertrainData.controllerTemperature;
+            high_freq_root["Motor_Speed_RPM"] =    TJA_DATA.CurrentPowertrainData.motorSpeedRPM;
+            high_freq_root["Motor_Torque_Nm"] =    TJA_DATA.CurrentPowertrainData.motorTorque;
+            high_freq_root["Motor_Temperature_C"] =    TJA_DATA.CurrentPowertrainData.motorTemperature;
+            high_freq_root["Controller_Temperature_C"] =    TJA_DATA.CurrentPowertrainData.controllerTemperature;
+
+            high_freq_root["recording"] = logger.recording;
 
             //  Serialize JSON Object to array of string
             char HighFrequencyDataBuffer[measureJson(high_freq_root) + 1];

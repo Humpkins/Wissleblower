@@ -11,7 +11,7 @@
     #include "../config.h"
 #endif
 
-#define MPU_INTERRUPT_PIN 36
+#define MPU_INTERRUPT_PIN GPIO_NUM_39
 
 MPU6050 mpu;
 
@@ -54,7 +54,8 @@ class MPU {
             if ( mpu.testConnection() ) Serial.println( F("MPU6050 connection successful") );
             else {
                 Serial.println( F("[ERROR]    Handdle MPU6050 connection failed"));
-                ESP.restart();
+                utilities.ESPReset();
+                
                 while(true);
             }
 
